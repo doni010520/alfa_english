@@ -27,13 +27,120 @@ import {
   CreditCard,
   Percent,
   Eye,
-  BookMarked
+  BookMarked,
+  LogIn,
+  LogOut,
+  Lock
 } from 'lucide-react'
 
 // Configuração do Supabase
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'SUA_URL_SUPABASE'
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'SUA_CHAVE_ANON'
 const supabase = createClient(supabaseUrl, supabaseKey)
+
+// Tela de Login
+function LoginScreen({ onLogin, loading }) {
+  const [email, setEmail] = useState('')
+  const [senha, setSenha] = useState('')
+  const [error, setError] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+
+  async function handleLogin(e) {
+    e.preventDefault()
+    setError('')
+    setIsLoading(true)
+
+    try {
+      // Verificar credenciais no banco
+      const { data, error } = await supabase.rpc('verificar_login', {
+        p_email: email,
+        p_senha: senha
+      })
+
+      if (error) throw error
+
+      if (data && data.length > 0) {
+        const usuario = data[0]
+        onLogin(usuario)
+      } else {
+        setError('Email ou senha incorretos')
+      }
+    } catch (err) {
+      console.error('Erro no login:', err)
+      setError('Erro ao fazer login. Tente novamente.')
+    }
+
+    setIsLoading(false)
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-brand-50 via-white to-accent-50">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 bg-gradient-to-br from-brand-500 to-accent-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Globe2 className="w-9 h-9 text-white" />
+          </div>
+          <h1 className="text-3xl font-display font-bold text-surface-900">EduLingua</h1>
+          <p className="text-surface-500 mt-1">Gestão de Turmas</p>
+        </div>
+
+        <form onSubmit={handleLogin} className="bg-white rounded-2xl shadow-card p-8 space-y-5">
+          <div>
+            <label className="block text-sm font-medium text-surface-700 mb-1">Email</label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400" />
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="seu@email.com"
+                required
+                className="w-full pl-10 pr-4 py-3 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-surface-700 mb-1">Senha</label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400" />
+              <input
+                type="password"
+                value={senha}
+                onChange={(e) => setSenha(e.target.value)}
+                placeholder="••••••••"
+                required
+                className="w-full pl-10 pr-4 py-3 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
+              />
+            </div>
+          </div>
+
+          {error && (
+            <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 px-4 py-3 rounded-xl">
+              <AlertCircle className="w-4 h-4" />
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 transition-colors disabled:opacity-50"
+          >
+            {isLoading ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <>
+                <LogIn className="w-5 h-5" />
+                Entrar
+              </>
+            )}
+          </button>
+        </form>
+      </div>
+    </div>
+  )
+}
 
 // Toast
 function Toast({ message, type, onClose }) {
@@ -169,6 +276,8 @@ const emptyFormAluno = {
 }
 
 function App() {
+  const [usuario, setUsuario] = useState(null)
+  const [checkingAuth, setCheckingAuth] = useState(true)
   const [activeTab, setActiveTab] = useState('dashboard')
   const [turmas, setTurmas] = useState([])
   const [alunos, setAlunos] = useState([])
@@ -194,8 +303,31 @@ function App() {
   const [formAluno, setFormAluno] = useState({ ...emptyFormAluno })
 
   useEffect(() => {
-    loadData()
+    // Verificar se há usuário salvo
+    const savedUser = localStorage.getItem('edulingua_user')
+    if (savedUser) {
+      setUsuario(JSON.parse(savedUser))
+    }
+    setCheckingAuth(false)
   }, [])
+
+  useEffect(() => {
+    if (usuario) {
+      loadData()
+    }
+  }, [usuario])
+
+  function handleLogin(user) {
+    localStorage.setItem('edulingua_user', JSON.stringify(user))
+    setUsuario(user)
+  }
+
+  function handleLogout() {
+    localStorage.removeItem('edulingua_user')
+    setUsuario(null)
+    setTurmas([])
+    setAlunos([])
+  }
 
   async function loadData() {
     setLoading(true)
@@ -453,6 +585,15 @@ function App() {
   }
 
   return (
+    <>
+      {/* Verificando autenticação */}
+      {checkingAuth ? (
+        <div className="min-h-screen flex items-center justify-center">
+          <Loader2 className="w-8 h-8 text-brand-500 animate-spin" />
+        </div>
+      ) : !usuario ? (
+        <LoginScreen onLogin={handleLogin} />
+      ) : (
     <div className="min-h-screen">
       {/* Sidebar */}
       <aside className="fixed left-0 top-0 h-full w-64 bg-white border-r border-surface-200 shadow-soft z-40">
@@ -490,15 +631,22 @@ function App() {
         </div>
 
         <div className="absolute bottom-0 left-0 right-0 p-6 border-t border-surface-100">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 bg-surface-100 rounded-full flex items-center justify-center">
-              <GraduationCap className="w-5 h-5 text-surface-600" />
+              <User className="w-5 h-5 text-surface-600" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-surface-900 truncate">Administrador</p>
-              <p className="text-xs text-surface-500">admin@escola.com</p>
+              <p className="text-sm font-medium text-surface-900 truncate">{usuario?.nome || 'Usuário'}</p>
+              <p className="text-xs text-surface-500 truncate">{usuario?.email}</p>
             </div>
           </div>
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm text-surface-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
+            Sair
+          </button>
         </div>
       </aside>
 
@@ -1529,6 +1677,8 @@ function App() {
         />
       )}
     </div>
+      )}
+    </>
   )
 }
 
