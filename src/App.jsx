@@ -250,7 +250,8 @@ const emptyFormAluno = {
   nome: '',
   cpf: '',
   rg: '',
-  data_nascimento: '',
+  aniversario_dia: '',
+  aniversario_mes: '',
   telefone: '',
   email: '',
   cep: '',
@@ -434,6 +435,8 @@ function App() {
     try {
       const dataToSave = {
         ...formAluno,
+        aniversario_dia: formAluno.aniversario_dia ? parseInt(formAluno.aniversario_dia) : null,
+        aniversario_mes: formAluno.aniversario_mes ? parseInt(formAluno.aniversario_mes) : null,
         dia_vencimento: formAluno.dia_vencimento ? parseInt(formAluno.dia_vencimento) : null,
         valor_mensalidade: formAluno.valor_mensalidade ? parseFloat(formAluno.valor_mensalidade) : null,
         desconto: formAluno.desconto ? parseFloat(formAluno.desconto) : 0,
@@ -478,7 +481,8 @@ function App() {
       nome: aluno.nome || '',
       cpf: aluno.cpf || '',
       rg: aluno.rg || '',
-      data_nascimento: aluno.data_nascimento || '',
+      aniversario_dia: aluno.aniversario_dia || '',
+      aniversario_mes: aluno.aniversario_mes || '',
       telefone: aluno.telefone || '',
       email: aluno.email || '',
       cep: aluno.cep || '',
@@ -1150,13 +1154,38 @@ function App() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-surface-700 mb-1">Data de Nascimento</label>
-                  <input
-                    type="date"
-                    value={formAluno.data_nascimento}
-                    onChange={(e) => setFormAluno({ ...formAluno, data_nascimento: e.target.value })}
-                    className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20"
-                  />
+                  <label className="block text-sm font-medium text-surface-700 mb-1">Aniversário</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      value={formAluno.aniversario_dia}
+                      onChange={(e) => setFormAluno({ ...formAluno, aniversario_dia: e.target.value })}
+                      className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20"
+                    >
+                      <option value="">Dia</option>
+                      {[...Array(31)].map((_, i) => (
+                        <option key={i + 1} value={i + 1}>{i + 1}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={formAluno.aniversario_mes}
+                      onChange={(e) => setFormAluno({ ...formAluno, aniversario_mes: e.target.value })}
+                      className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20"
+                    >
+                      <option value="">Mês</option>
+                      <option value="1">Janeiro</option>
+                      <option value="2">Fevereiro</option>
+                      <option value="3">Março</option>
+                      <option value="4">Abril</option>
+                      <option value="5">Maio</option>
+                      <option value="6">Junho</option>
+                      <option value="7">Julho</option>
+                      <option value="8">Agosto</option>
+                      <option value="9">Setembro</option>
+                      <option value="10">Outubro</option>
+                      <option value="11">Novembro</option>
+                      <option value="12">Dezembro</option>
+                    </select>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-surface-700 mb-1">Telefone/WhatsApp</label>
@@ -1625,6 +1654,9 @@ function App() {
                 <div className="space-y-2 text-surface-600">
                   {modalDetalheAluno.aluno.cpf && <p><span className="text-surface-500">CPF:</span> {modalDetalheAluno.aluno.cpf}</p>}
                   {modalDetalheAluno.aluno.rg && <p><span className="text-surface-500">RG:</span> {modalDetalheAluno.aluno.rg}</p>}
+                  {modalDetalheAluno.aluno.aniversario_dia && modalDetalheAluno.aluno.aniversario_mes && (
+                    <p><span className="text-surface-500">Aniversário:</span> {modalDetalheAluno.aluno.aniversario_dia}/{String(modalDetalheAluno.aluno.aniversario_mes).padStart(2, '0')}</p>
+                  )}
                   {modalDetalheAluno.aluno.email && <p><span className="text-surface-500">Email:</span> {modalDetalheAluno.aluno.email}</p>}
                   {modalDetalheAluno.aluno.telefone && <p><span className="text-surface-500">Tel:</span> {modalDetalheAluno.aluno.telefone}</p>}
                   {modalDetalheAluno.aluno.cidade && (
