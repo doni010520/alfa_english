@@ -267,6 +267,7 @@ const emptyFormAluno = {
   data_inicio: '',
   status_pedagogico: 'ativo',
   observacoes_pedagogicas: '',
+  usa_transporte: false,
   // Financeiro
   dia_vencimento: '',
   valor_mensalidade: '',
@@ -493,6 +494,7 @@ function App() {
       data_inicio: aluno.data_inicio || '',
       status_pedagogico: aluno.status_pedagogico || 'ativo',
       observacoes_pedagogicas: aluno.observacoes_pedagogicas || '',
+      usa_transporte: aluno.usa_transporte || false,
       dia_vencimento: aluno.dia_vencimento || '',
       valor_mensalidade: aluno.valor_mensalidade || '',
       forma_pagamento: aluno.forma_pagamento || 'PIX',
@@ -1327,6 +1329,33 @@ function App() {
                 </div>
               </div>
 
+              {/* Usa Transporte */}
+              <div className="pt-4 border-t border-surface-100">
+                <label className="block text-sm font-medium text-surface-700 mb-3">Usa Transporte Escolar?</label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="usa_transporte"
+                      checked={formAluno.usa_transporte === true}
+                      onChange={() => setFormAluno({ ...formAluno, usa_transporte: true })}
+                      className="w-5 h-5 text-brand-600 border-surface-300 focus:ring-brand-500"
+                    />
+                    <span className="text-surface-700">Sim</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="usa_transporte"
+                      checked={formAluno.usa_transporte === false}
+                      onChange={() => setFormAluno({ ...formAluno, usa_transporte: false })}
+                      className="w-5 h-5 text-brand-600 border-surface-300 focus:ring-brand-500"
+                    />
+                    <span className="text-surface-700">Não</span>
+                  </label>
+                </div>
+              </div>
+
               {/* Turmas matriculadas (apenas visualização) */}
               {modalAluno.data && modalAluno.data.matriculas?.length > 0 && (
                 <div className="pt-4 border-t border-surface-100">
@@ -1634,6 +1663,16 @@ function App() {
                 </div>
               </div>
             )}
+
+            {/* Transporte */}
+            <div className="pt-4 border-t border-surface-100">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-surface-500">Usa Transporte:</span>
+                <span className={`badge ${modalDetalheAluno.aluno.usa_transporte ? 'bg-emerald-100 text-emerald-700' : 'bg-surface-100 text-surface-600'}`}>
+                  {modalDetalheAluno.aluno.usa_transporte ? 'Sim' : 'Não'}
+                </span>
+              </div>
+            </div>
 
             {/* Responsável */}
             {modalDetalheAluno.aluno.responsavel_nome && (
