@@ -101,8 +101,7 @@ function Modal({ isOpen, onClose, title, children, size = 'md' }) {
 }
 
 // Constantes
-const NIVEIS = ['Iniciante', 'Básico', 'Intermediário', 'Avançado', 'Fluente']
-const IDIOMAS = ['Inglês', 'Espanhol', 'Francês', 'Alemão', 'Italiano', 'Japonês', 'Mandarim', 'Coreano', 'Português']
+const IDIOMAS = ['Inglês', 'Espanhol', 'Francês']
 const STATUS_PEDAGOGICO = ['ativo', 'trancado', 'concluido']
 const STATUS_FINANCEIRO = ['em_dia', 'pendente', 'inadimplente']
 const FORMAS_PAGAMENTO = ['PIX', 'Boleto', 'Cartão', 'Dinheiro', 'Transferência']
@@ -190,7 +189,7 @@ function App() {
 
   // Estados dos formulários
   const [formTurma, setFormTurma] = useState({
-    nome: '', idioma: 'Inglês', nivel: 'Iniciante', professor: '', horario: '', dias_semana: '', livro: ''
+    nome: '', idioma: 'Inglês', professor: '', horario: '', dias_semana: '', livro: ''
   })
   const [formAluno, setFormAluno] = useState({ ...emptyFormAluno })
 
@@ -285,7 +284,6 @@ function App() {
     setFormTurma({
       nome: turma.nome,
       idioma: turma.idioma,
-      nivel: turma.nivel,
       professor: turma.professor || '',
       horario: turma.horario || '',
       dias_semana: turma.dias_semana || '',
@@ -295,7 +293,7 @@ function App() {
   }
 
   function resetFormTurma() {
-    setFormTurma({ nome: '', idioma: 'Inglês', nivel: 'Iniciante', professor: '', horario: '', dias_semana: '', livro: '' })
+    setFormTurma({ nome: '', idioma: 'Inglês', professor: '', horario: '', dias_semana: '', livro: '' })
   }
 
   // CRUD Alunos
@@ -585,7 +583,7 @@ function App() {
                               </div>
                               <div>
                                 <p className="font-medium text-surface-900">{turma.nome}</p>
-                                <p className="text-sm text-surface-500">{turma.idioma} • {turma.nivel}</p>
+                                <p className="text-sm text-surface-500">{turma.idioma}</p>
                               </div>
                             </div>
                             <span className="text-sm text-surface-600">{turma.matriculas?.length || 0} alunos</span>
@@ -681,7 +679,6 @@ function App() {
                                 <span className={`badge ${IDIOMA_COLORS[turma.idioma] || 'bg-surface-100 text-surface-600'}`}>
                                   {turma.idioma}
                                 </span>
-                                <span className="badge bg-surface-100 text-surface-600">{turma.nivel}</span>
                                 {turma.professor && (
                                   <span className="text-sm text-surface-500">Prof. {turma.professor}</span>
                                 )}
@@ -868,27 +865,15 @@ function App() {
               className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-surface-700 mb-1">Idioma *</label>
-              <select
-                value={formTurma.idioma}
-                onChange={(e) => setFormTurma({ ...formTurma, idioma: e.target.value })}
-                className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
-              >
-                {IDIOMAS.map(i => <option key={i} value={i}>{i}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-surface-700 mb-1">Nível *</label>
-              <select
-                value={formTurma.nivel}
-                onChange={(e) => setFormTurma({ ...formTurma, nivel: e.target.value })}
-                className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
-              >
-                {NIVEIS.map(n => <option key={n} value={n}>{n}</option>)}
-              </select>
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-surface-700 mb-1">Idioma *</label>
+            <select
+              value={formTurma.idioma}
+              onChange={(e) => setFormTurma({ ...formTurma, idioma: e.target.value })}
+              className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
+            >
+              {IDIOMAS.map(i => <option key={i} value={i}>{i}</option>)}
+            </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-surface-700 mb-1">Professor</label>
@@ -1383,7 +1368,6 @@ function App() {
               <div>
                 <div className="flex gap-2 flex-wrap">
                   <span className="badge bg-surface-200 text-surface-700">{modalDetalheTurma.turma.idioma}</span>
-                  <span className="badge bg-surface-200 text-surface-700">{modalDetalheTurma.turma.nivel}</span>
                 </div>
                 {modalDetalheTurma.turma.professor && (
                   <p className="text-sm text-surface-600 mt-1">Prof. {modalDetalheTurma.turma.professor}</p>
