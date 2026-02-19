@@ -26,7 +26,8 @@ import {
   FileText,
   CreditCard,
   Percent,
-  Eye
+  Eye,
+  BookMarked
 } from 'lucide-react'
 
 // Configuração do Supabase
@@ -189,7 +190,7 @@ function App() {
 
   // Estados dos formulários
   const [formTurma, setFormTurma] = useState({
-    nome: '', idioma: 'Inglês', nivel: 'Iniciante', professor: '', horario: '', dias_semana: ''
+    nome: '', idioma: 'Inglês', nivel: 'Iniciante', professor: '', horario: '', dias_semana: '', livro: ''
   })
   const [formAluno, setFormAluno] = useState({ ...emptyFormAluno })
 
@@ -287,13 +288,14 @@ function App() {
       nivel: turma.nivel,
       professor: turma.professor || '',
       horario: turma.horario || '',
-      dias_semana: turma.dias_semana || ''
+      dias_semana: turma.dias_semana || '',
+      livro: turma.livro || ''
     })
     setModalTurma({ open: true, data: turma })
   }
 
   function resetFormTurma() {
-    setFormTurma({ nome: '', idioma: 'Inglês', nivel: 'Iniciante', professor: '', horario: '', dias_semana: '' })
+    setFormTurma({ nome: '', idioma: 'Inglês', nivel: 'Iniciante', professor: '', horario: '', dias_semana: '', livro: '' })
   }
 
   // CRUD Alunos
@@ -420,7 +422,8 @@ function App() {
   const turmasFiltradas = turmas.filter(t => 
     t.nome.toLowerCase().includes(searchTurma.toLowerCase()) ||
     t.idioma.toLowerCase().includes(searchTurma.toLowerCase()) ||
-    (t.professor && t.professor.toLowerCase().includes(searchTurma.toLowerCase()))
+    (t.professor && t.professor.toLowerCase().includes(searchTurma.toLowerCase())) ||
+    (t.livro && t.livro.toLowerCase().includes(searchTurma.toLowerCase()))
   )
 
   const alunosFiltrados = alunos.filter(a =>
@@ -682,6 +685,11 @@ function App() {
                                 {turma.professor && (
                                   <span className="text-sm text-surface-500">Prof. {turma.professor}</span>
                                 )}
+                                {turma.livro && (
+                                  <span className="text-sm text-surface-500 flex items-center gap-1">
+                                    <BookMarked className="w-3 h-3" /> {turma.livro}
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -913,6 +921,16 @@ function App() {
                 className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
               />
             </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-surface-700 mb-1">Livro</label>
+            <input
+              type="text"
+              value={formTurma.livro}
+              onChange={(e) => setFormTurma({ ...formTurma, livro: e.target.value })}
+              placeholder="Ex: English File Intermediate"
+              className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
+            />
           </div>
           <div className="flex gap-3 pt-4">
             <button
@@ -1363,10 +1381,17 @@ function App() {
                 <Globe2 className="w-6 h-6" />
               </div>
               <div>
-                <span className="badge bg-surface-200 text-surface-700">{modalDetalheTurma.turma.idioma}</span>
-                <span className="badge bg-surface-200 text-surface-700 ml-2">{modalDetalheTurma.turma.nivel}</span>
+                <div className="flex gap-2 flex-wrap">
+                  <span className="badge bg-surface-200 text-surface-700">{modalDetalheTurma.turma.idioma}</span>
+                  <span className="badge bg-surface-200 text-surface-700">{modalDetalheTurma.turma.nivel}</span>
+                </div>
                 {modalDetalheTurma.turma.professor && (
                   <p className="text-sm text-surface-600 mt-1">Prof. {modalDetalheTurma.turma.professor}</p>
+                )}
+                {modalDetalheTurma.turma.livro && (
+                  <p className="text-sm text-surface-600 mt-1 flex items-center gap-1">
+                    <BookMarked className="w-3 h-3" /> {modalDetalheTurma.turma.livro}
+                  </p>
                 )}
               </div>
             </div>
