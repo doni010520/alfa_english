@@ -563,7 +563,7 @@ function App() {
   )
 
   const alunosFiltrados = alunos.filter(a =>
-    a.nome.toLowerCase().includes(searchAluno.toLowerCase()) ||
+    (a.nome || '').toLowerCase().includes(searchAluno.toLowerCase()) ||
     (a.email && a.email.toLowerCase().includes(searchAluno.toLowerCase())) ||
     (a.cpf && a.cpf.includes(searchAluno))
   )
@@ -766,10 +766,10 @@ function App() {
                           <div key={aluno.id} className="px-6 py-4 flex items-center justify-between hover:bg-surface-50 transition-colors">
                             <div className="flex items-center gap-4">
                               <div className="w-10 h-10 bg-gradient-to-br from-brand-400 to-accent-400 rounded-full flex items-center justify-center text-white font-semibold text-sm">
-                                {aluno.nome.charAt(0).toUpperCase()}
+                                {(aluno.nome || '?').charAt(0).toUpperCase()}
                               </div>
                               <div>
-                                <p className="font-medium text-surface-900">{aluno.nome}</p>
+                                <p className="font-medium text-surface-900">{aluno.nome || 'Sem nome'}</p>
                                 <p className="text-sm text-surface-500">Venc. dia {aluno.dia_vencimento || '-'}</p>
                               </div>
                             </div>
@@ -935,10 +935,10 @@ function App() {
                         <div key={aluno.id} className="px-6 py-4 flex items-center justify-between table-row-hover">
                           <div className="flex items-center gap-4">
                             <div className="w-12 h-12 bg-gradient-to-br from-brand-400 to-accent-400 rounded-full flex items-center justify-center text-white font-semibold">
-                              {aluno.nome.charAt(0).toUpperCase()}
+                              {(aluno.nome || '?').charAt(0).toUpperCase()}
                             </div>
                             <div>
-                              <p className="font-semibold text-surface-900">{aluno.nome}</p>
+                              <p className="font-semibold text-surface-900">{aluno.nome || 'Sem nome'}</p>
                               <p className="text-sm text-surface-500">{aluno.email || aluno.telefone || 'Sem contato'}</p>
                             </div>
                           </div>
@@ -1124,7 +1124,7 @@ function App() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
-                  <label className="block text-sm font-medium text-surface-700 mb-1">Nome Completo *</label>
+                  <label className="block text-sm font-medium text-surface-700 mb-1">Nome Completo</label>
                   <input
                     type="text"
                     value={formAluno.nome}
@@ -1516,8 +1516,7 @@ function App() {
             </button>
             <button
               onClick={saveAluno}
-              disabled={!formAluno.nome}
-              className="flex-1 px-4 py-2.5 bg-accent-600 text-white rounded-xl font-medium hover:bg-accent-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 px-4 py-2.5 bg-accent-600 text-white rounded-xl font-medium hover:bg-accent-700 transition-colors"
             >
               {modalAluno.data ? 'Salvar Alterações' : 'Cadastrar Aluno'}
             </button>
@@ -1541,10 +1540,10 @@ function App() {
                 className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-surface-200 hover:border-brand-300 hover:bg-brand-50 transition-all text-left"
               >
                 <div className="w-10 h-10 bg-gradient-to-br from-brand-400 to-accent-400 rounded-full flex items-center justify-center text-white font-semibold text-sm">
-                  {aluno.nome.charAt(0).toUpperCase()}
+                  {(aluno.nome || '?').charAt(0).toUpperCase()}
                 </div>
                 <div>
-                  <p className="font-medium text-surface-900">{aluno.nome}</p>
+                  <p className="font-medium text-surface-900">{aluno.nome || 'Sem nome'}</p>
                   <p className="text-sm text-surface-500">{aluno.email || 'Sem email'}</p>
                 </div>
               </button>
@@ -1630,10 +1629,10 @@ function App() {
             {/* Header */}
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 bg-gradient-to-br from-brand-400 to-accent-400 rounded-full flex items-center justify-center text-white text-2xl font-bold">
-                {modalDetalheAluno.aluno.nome.charAt(0).toUpperCase()}
+                {(modalDetalheAluno.aluno.nome || '?').charAt(0).toUpperCase()}
               </div>
               <div>
-                <h3 className="text-xl font-semibold text-surface-900">{modalDetalheAluno.aluno.nome}</h3>
+                <h3 className="text-xl font-semibold text-surface-900">{modalDetalheAluno.aluno.nome || 'Sem nome'}</h3>
                 <div className="flex gap-2 mt-1">
                   <span className={`badge ${STATUS_COLORS[modalDetalheAluno.aluno.status_pedagogico]}`}>
                     {STATUS_LABELS[modalDetalheAluno.aluno.status_pedagogico]}
