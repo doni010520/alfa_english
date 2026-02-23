@@ -1626,6 +1626,128 @@ function App() {
       >
         {modalDetalheAluno.aluno && (
           <div className="space-y-6">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 bg-gradient-to-br from-brand-400 to-accent-400 rounded-full flex items-center justify-center text-white text-2xl font-bold">
+                {(modalDetalheAluno.aluno.nome || '?').charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold text-surface-900">{modalDetalheAluno.aluno.nome || 'Sem nome'}</h3>
+                <div className="flex gap-2 mt-1">
+                  <span className={`badge ${STATUS_COLORS[modalDetalheAluno.aluno.status_pedagogico]}`}>
+                    {STATUS_LABELS[modalDetalheAluno.aluno.status_pedagogico]}
+                  </span>
+                  <span className={`badge ${STATUS_COLORS[modalDetalheAluno.aluno.status_financeiro]}`}>
+                    {STATUS_LABELS[modalDetalheAluno.aluno.status_financeiro]}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="space-y-3">
+                <h4 className="font-medium text-surface-900 flex items-center gap-2">
+                  <User className="w-4 h-4" /> Dados Pessoais
+                </h4>
+                <div className="space-y-2 text-surface-600">
+                  {modalDetalheAluno.aluno.cpf && <p><span className="text-surface-500">CPF:</span> {modalDetalheAluno.aluno.cpf}</p>}
+                  {modalDetalheAluno.aluno.rg && <p><span className="text-surface-500">RG:</span> {modalDetalheAluno.aluno.rg}</p>}
+                  {modalDetalheAluno.aluno.aniversario_dia && modalDetalheAluno.aluno.aniversario_mes && (
+                    <p><span className="text-surface-500">Aniversário:</span> {modalDetalheAluno.aluno.aniversario_dia}/{String(modalDetalheAluno.aluno.aniversario_mes).padStart(2, '0')}</p>
+                  )}
+                  {modalDetalheAluno.aluno.email && <p><span className="text-surface-500">Email:</span> {modalDetalheAluno.aluno.email}</p>}
+                  {modalDetalheAluno.aluno.telefone && <p><span className="text-surface-500">Tel:</span> {modalDetalheAluno.aluno.telefone}</p>}
+                  {modalDetalheAluno.aluno.cidade && (
+                    <p><span className="text-surface-500">Cidade:</span> {modalDetalheAluno.aluno.cidade}/{modalDetalheAluno.aluno.estado}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <h4 className="font-medium text-surface-900 flex items-center gap-2">
+                  <DollarSign className="w-4 h-4" /> Financeiro
+                </h4>
+                <div className="space-y-2 text-surface-600">
+                  <p><span className="text-surface-500">Vencimento:</span> Dia {modalDetalheAluno.aluno.dia_vencimento || '-'}</p>
+                  <p><span className="text-surface-500">Mensalidade:</span> {formatCurrency(modalDetalheAluno.aluno.valor_mensalidade)}</p>
+                  <p><span className="text-surface-500">Pagamento:</span> {modalDetalheAluno.aluno.forma_pagamento || '-'}</p>
+                  {modalDetalheAluno.aluno.desconto > 0 && (
+                    <p><span className="text-surface-500">Desconto:</span> {modalDetalheAluno.aluno.desconto}%</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {modalDetalheAluno.aluno.matriculas?.length > 0 && (
+              <div className="pt-4 border-t border-surface-100">
+                <h4 className="font-medium text-surface-900 mb-3 flex items-center gap-2">
+                  <BookOpen className="w-4 h-4" /> Turmas
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {modalDetalheAluno.aluno.matriculas.map(m => (
+                    <div key={m.id} className={`badge ${IDIOMA_COLORS[m.turmas?.idioma] || 'bg-surface-100 text-surface-600'}`}>
+                      {m.turmas?.nome} • {m.turmas?.horario || 'Sem horário'}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="pt-4 border-t border-surface-100">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-surface-500">Usa Transporte:</span>
+                <span className={`badge ${modalDetalheAluno.aluno.usa_transporte ? 'bg-emerald-100 text-emerald-700' : 'bg-surface-100 text-surface-600'}`}>
+                  {modalDetalheAluno.aluno.usa_transporte ? 'Sim' : 'Não'}
+                </span>
+              </div>
+            </div>
+
+            {modalDetalheAluno.aluno.responsavel_nome && (
+              <div className="pt-4 border-t border-surface-100">
+                <h4 className="font-medium text-surface-900 mb-3 flex items-center gap-2">
+                  <Users className="w-4 h-4" /> Responsável
+                </h4>
+                <div className="text-sm text-surface-600 space-y-1">
+                  <p><span className="text-surface-500">Nome:</span> {modalDetalheAluno.aluno.responsavel_nome}</p>
+                  {modalDetalheAluno.aluno.responsavel_cpf && (
+                    <p><span className="text-surface-500">CPF:</span> {modalDetalheAluno.aluno.responsavel_cpf}</p>
+                  )}
+                  {modalDetalheAluno.aluno.responsavel_telefone && (
+                    <p><span className="text-surface-500">Tel:</span> {modalDetalheAluno.aluno.responsavel_telefone}</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {modalDetalheAluno.aluno.observacoes_pedagogicas && (
+              <div className="pt-4 border-t border-surface-100">
+                <h4 className="font-medium text-surface-900 mb-2 flex items-center gap-2">
+                  <FileText className="w-4 h-4" /> Observações
+                </h4>
+                <p className="text-sm text-surface-600 bg-surface-50 p-3 rounded-lg">
+                  {modalDetalheAluno.aluno.observacoes_pedagogicas}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      {/* Toast */}
+      {toast && (
+        <Toast 
+          message={toast.message} 
+          type={toast.type} 
+          onClose={() => setToast(null)} 
+        />
+      )}
+    </div>
+      )}
+    </>
+  )
+}
+
+export default App
+          <div className="space-y-6">
             {/* Header */}
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 bg-gradient-to-br from-brand-400 to-accent-400 rounded-full flex items-center justify-center text-white text-2xl font-bold">
