@@ -153,6 +153,9 @@ function App() {
   const [formAluno, setFormAluno] = useState({ ...emptyFormAluno })
   const [formProfessor, setFormProfessor] = useState({ nome: '', email: '', senha: '' })
   const [formAula, setFormAula] = useState({ data: new Date().toISOString().split('T')[0], unidade_livro: '', conteudo: '', observacoes: '', presencas: {} })
+  const [modalSenha, setModalSenha] = useState(false)
+  const [formSenha, setFormSenha] = useState({ atual: '', nova: '', confirmar: '' })
+  const [senhaLoading, setSenhaLoading] = useState(false)
 
   useEffect(() => {
     const savedUser = localStorage.getItem('edulingua_user')
@@ -432,6 +435,38 @@ function App() {
     } catch (error) { console.error('Erro ao excluir aula:', error); showToast('Erro ao excluir aula', 'error') }
   }
 
+  // Alterar Senha
+  async function alterarSenha() {
+    if (formSenha.nova !== formSenha.confirmar) {
+      showToast('As senhas não coincidem', 'error')
+      return
+    }
+    if (formSenha.nova.length < 4) {
+      showToast('A nova senha deve ter pelo menos 4 caracteres', 'error')
+      return
+    }
+    setSenhaLoading(true)
+    try {
+      const { data, error } = await supabase.rpc('alterar_minha_senha', {
+        p_usuario_id: usuario.id,
+        p_senha_atual: formSenha.atual,
+        p_nova_senha: formSenha.nova
+      })
+      if (error) throw error
+      if (data === true) {
+        showToast('Senha alterada com sucesso!', 'success')
+        setModalSenha(false)
+        setFormSenha({ atual: '', nova: '', confirmar: '' })
+      } else {
+        showToast('Senha atual incorreta', 'error')
+      }
+    } catch (error) {
+      console.error('Erro ao alterar senha:', error)
+      showToast('Erro ao alterar senha', 'error')
+    }
+    setSenhaLoading(false)
+  }
+
   // Filtros
   const turmasFiltradas = turmas.filter(t => t.nome.toLowerCase().includes(searchTurma.toLowerCase()) || t.idioma.toLowerCase().includes(searchTurma.toLowerCase()) || (t.professor?.nome && t.professor.nome.toLowerCase().includes(searchTurma.toLowerCase())) || (t.livro && t.livro.toLowerCase().includes(searchTurma.toLowerCase())))
   const alunosFiltrados = alunos.filter(a => (a.nome || '').toLowerCase().includes(searchAluno.toLowerCase()) || (a.email && a.email.toLowerCase().includes(searchAluno.toLowerCase())) || (a.cpf && a.cpf.includes(searchAluno)))
@@ -496,9 +531,14 @@ function App() {
                   <p className="text-xs text-surface-500 truncate">{usuario?.email}</p>
                 </div>
               </div>
-              <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm text-surface-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                <LogOut className="w-4 h-4" />Sair
-              </button>
+              <div className="space-y-1">
+                <button onClick={() => setModalSenha(true)} className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm text-surface-600 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors">
+                  <Lock className="w-4 h-4" />Alterar Senha
+                </button>
+                <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm text-surface-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                  <LogOut className="w-4 h-4" />Sair
+                </button>
+              </div>
             </div>
           </aside>
 
@@ -1217,6 +1257,36 @@ function App() {
           </Modal>
 
           {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
+          {/* Modal Alterar Senha */}
+          <Modal isOpen={modalSenha} onClose={() => { setModalSenha(false); setFormSenha({ atual: '', nova: '', confirmar: '' }) }} title="Alterar Senha">
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-surface-700 mb-1">Senha Atual *</label>
+                <input type="password" value={formSenha.atual} onChange={(e) => setFormSenha({ ...formSenha, atual: e.target.value })} placeholder="••••••••" className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-surface-700 mb-1">Nova Senha *</label>
+                <input type="password" value={formSenha.nova} onChange={(e) => setFormSenha({ ...formSenha, nova: e.target.value })} placeholder="••••••••" className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-surface-700 mb-1">Confirmar Nova Senha *</label>
+                <input type="password" value={formSenha.confirmar} onChange={(e) => setFormSenha({ ...formSenha, confirmar: e.target.value })} placeholder="••••••••" className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20" />
+              </div>
+              {formSenha.nova && formSenha.confirmar && formSenha.nova !== formSenha.confirmar && (
+                <div className="flex items-center gap-2 text-red-600 text-sm">
+                  <AlertCircle className="w-4 h-4" />As senhas não coincidem
+                </div>
+              )}
+              <div className="flex gap-3 pt-4">
+                <button onClick={() => { setModalSenha(false); setFormSenha({ atual: '', nova: '', confirmar: '' }) }} className="flex-1 px-4 py-2.5 border border-surface-200 rounded-xl font-medium text-surface-700 hover:bg-surface-50">Cancelar</button>
+                <button onClick={alterarSenha} disabled={!formSenha.atual || !formSenha.nova || !formSenha.confirmar || formSenha.nova !== formSenha.confirmar || senhaLoading} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 disabled:opacity-50">
+                  {senhaLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
+                  Alterar
+                </button>
+              </div>
+            </div>
+          </Modal>
         </div>
       )}
     </>
