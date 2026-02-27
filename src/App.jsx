@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { 
   Users, BookOpen, Plus, Search, Edit2, Trash2, X, UserPlus, GraduationCap, Clock, Globe2,
   ChevronRight, AlertCircle, Check, Loader2, LayoutDashboard, User, DollarSign, MapPin,
-  FileText, Eye, BookMarked, LogIn, LogOut, Lock, UserCheck, UserX, ClipboardList, Save, Mail
+  FileText, Eye, BookMarked, LogIn, LogOut, Lock, UserCheck, UserX, ClipboardList, Save, Mail, Menu
 } from 'lucide-react'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'SUA_URL_SUPABASE'
@@ -45,7 +45,7 @@ function LoginScreen({ onLogin }) {
           <h1 className="text-3xl font-display font-bold text-surface-900">EduLingua</h1>
           <p className="text-surface-500 mt-1">Gestão de Turmas</p>
         </div>
-        <form onSubmit={handleLogin} className="bg-white rounded-2xl shadow-card p-8 space-y-5">
+        <form onSubmit={handleLogin} className="bg-white rounded-2xl shadow-card p-6 sm:p-8 space-y-5">
           <div>
             <label className="block text-sm font-medium text-surface-700 mb-1">Email</label>
             <div className="relative">
@@ -62,7 +62,7 @@ function LoginScreen({ onLogin }) {
           </div>
           {error && (
             <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 px-4 py-3 rounded-xl">
-              <AlertCircle className="w-4 h-4" />{error}
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />{error}
             </div>
           )}
           <button type="submit" disabled={isLoading} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 transition-colors disabled:opacity-50">
@@ -77,10 +77,10 @@ function LoginScreen({ onLogin }) {
 function Toast({ message, type, onClose }) {
   useEffect(() => { const timer = setTimeout(onClose, 3000); return () => clearTimeout(timer) }, [onClose])
   return (
-    <div className={`fixed bottom-4 right-4 z-50 animate-slide-up flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg ${type === 'success' ? 'bg-emerald-500 text-white' : type === 'error' ? 'bg-red-500 text-white' : 'bg-surface-800 text-white'}`}>
-      {type === 'success' && <Check className="w-5 h-5" />}
-      {type === 'error' && <AlertCircle className="w-5 h-5" />}
-      <span className="font-medium">{message}</span>
+    <div className={`fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:w-auto z-50 animate-slide-up flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg ${type === 'success' ? 'bg-emerald-500 text-white' : type === 'error' ? 'bg-red-500 text-white' : 'bg-surface-800 text-white'}`}>
+      {type === 'success' && <Check className="w-5 h-5 flex-shrink-0" />}
+      {type === 'error' && <AlertCircle className="w-5 h-5 flex-shrink-0" />}
+      <span className="font-medium flex-1">{message}</span>
       <button onClick={onClose} className="ml-2 hover:opacity-70"><X className="w-4 h-4" /></button>
     </div>
   )
@@ -94,13 +94,13 @@ function Modal({ isOpen, onClose, title, children, size = 'md' }) {
   if (!isOpen) return null
   const sizeClasses = { sm: 'max-w-md', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-4xl' }
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop" onClick={onClose}>
-      <div className={`bg-white rounded-2xl shadow-2xl w-full ${sizeClasses[size]} animate-scale-in overflow-hidden max-h-[90vh] flex flex-col`} onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-100 shrink-0">
-          <h3 className="text-xl font-semibold text-surface-900 font-display">{title}</h3>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 modal-backdrop" onClick={onClose}>
+      <div className={`bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full ${sizeClasses[size]} animate-scale-in overflow-hidden max-h-[90vh] flex flex-col`} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-surface-100 shrink-0">
+          <h3 className="text-lg sm:text-xl font-semibold text-surface-900 font-display">{title}</h3>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-surface-100 text-surface-500 transition-colors"><X className="w-5 h-5" /></button>
         </div>
-        <div className="p-6 overflow-y-auto">{children}</div>
+        <div className="p-4 sm:p-6 overflow-y-auto">{children}</div>
       </div>
     </div>
   )
@@ -137,6 +137,7 @@ function App() {
   const [searchAluno, setSearchAluno] = useState('')
   const [searchProfessor, setSearchProfessor] = useState('')
   const [toast, setToast] = useState(null)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const [modalTurma, setModalTurma] = useState({ open: false, data: null })
   const [modalAluno, setModalAluno] = useState({ open: false, data: null })
@@ -168,6 +169,8 @@ function App() {
   }, [])
 
   useEffect(() => { if (usuario) loadData() }, [usuario])
+
+  useEffect(() => { setSidebarOpen(false) }, [activeTab])
 
   function handleLogin(user) {
     localStorage.setItem('edulingua_user', JSON.stringify(user))
@@ -210,13 +213,8 @@ function App() {
 
   function showToast(message, type = 'info') { setToast({ message, type }) }
 
-  // Turmas do professor logado (se for professor)
   const minhasTurmas = usuario?.perfil === 'professor' ? turmas.filter(t => t.professor_id === usuario.id) : turmas
-  
-  // Todos os usuários para o dropdown de professor da turma (admin + professor)
   const usuariosParaDropdown = usuarios
-  
-  // Apenas professores para a listagem na aba Professores
   const professoresLista = usuarios.filter(u => u.perfil === 'professor')
 
   async function buscarCep(cep) {
@@ -231,7 +229,6 @@ function App() {
     } catch (error) { console.error('Erro ao buscar CEP:', error) }
   }
 
-  // CRUD Turmas
   async function saveTurma() {
     try {
       const dataToSave = { ...formTurma, professor_id: formTurma.professor_id || null }
@@ -267,7 +264,6 @@ function App() {
 
   function resetFormTurma() { setFormTurma({ nome: '', idioma: 'Inglês', professor_id: '', horario: '', dias_semana: '', livro: '' }) }
 
-  // CRUD Alunos
   async function saveAluno() {
     try {
       const dataToSave = {
@@ -322,7 +318,6 @@ function App() {
 
   function resetFormAluno() { setFormAluno({ ...emptyFormAluno }); setAlunoTab('pessoais') }
 
-  // CRUD Professores
   async function saveProfessor() {
     try {
       if (modalProfessor.data) {
@@ -362,7 +357,6 @@ function App() {
     setModalProfessor({ open: true, data: professor })
   }
 
-  // Matrículas
   async function matricularAluno(alunoId) {
     try {
       const { error } = await supabase.from('matriculas').insert([{ turma_id: modalMatricula.turmaId, aluno_id: alunoId }])
@@ -386,7 +380,6 @@ function App() {
     } catch (error) { console.error('Erro ao cancelar matrícula:', error); showToast('Erro ao cancelar', 'error') }
   }
 
-  // Diário de Classe
   function openNovaAula(turma) {
     const presencasIniciais = {}
     turma.matriculas?.forEach(m => { if (m.alunos) presencasIniciais[m.alunos.id] = { presente: true, observacao: '' } })
@@ -435,39 +428,19 @@ function App() {
     } catch (error) { console.error('Erro ao excluir aula:', error); showToast('Erro ao excluir aula', 'error') }
   }
 
-  // Alterar Senha
   async function alterarSenha() {
-    if (formSenha.nova !== formSenha.confirmar) {
-      showToast('As senhas não coincidem', 'error')
-      return
-    }
-    if (formSenha.nova.length < 4) {
-      showToast('A nova senha deve ter pelo menos 4 caracteres', 'error')
-      return
-    }
+    if (formSenha.nova !== formSenha.confirmar) { showToast('As senhas não coincidem', 'error'); return }
+    if (formSenha.nova.length < 4) { showToast('A nova senha deve ter pelo menos 4 caracteres', 'error'); return }
     setSenhaLoading(true)
     try {
-      const { data, error } = await supabase.rpc('alterar_minha_senha', {
-        p_usuario_id: usuario.id,
-        p_senha_atual: formSenha.atual,
-        p_nova_senha: formSenha.nova
-      })
+      const { data, error } = await supabase.rpc('alterar_minha_senha', { p_usuario_id: usuario.id, p_senha_atual: formSenha.atual, p_nova_senha: formSenha.nova })
       if (error) throw error
-      if (data === true) {
-        showToast('Senha alterada com sucesso!', 'success')
-        setModalSenha(false)
-        setFormSenha({ atual: '', nova: '', confirmar: '' })
-      } else {
-        showToast('Senha atual incorreta', 'error')
-      }
-    } catch (error) {
-      console.error('Erro ao alterar senha:', error)
-      showToast('Erro ao alterar senha', 'error')
-    }
+      if (data === true) { showToast('Senha alterada com sucesso!', 'success'); setModalSenha(false); setFormSenha({ atual: '', nova: '', confirmar: '' }) }
+      else { showToast('Senha atual incorreta', 'error') }
+    } catch (error) { console.error('Erro ao alterar senha:', error); showToast('Erro ao alterar senha', 'error') }
     setSenhaLoading(false)
   }
 
-  // Filtros
   const turmasFiltradas = turmas.filter(t => t.nome.toLowerCase().includes(searchTurma.toLowerCase()) || t.idioma.toLowerCase().includes(searchTurma.toLowerCase()) || (t.professor?.nome && t.professor.nome.toLowerCase().includes(searchTurma.toLowerCase())) || (t.livro && t.livro.toLowerCase().includes(searchTurma.toLowerCase())))
   const alunosFiltrados = alunos.filter(a => (a.nome || '').toLowerCase().includes(searchAluno.toLowerCase()) || (a.email && a.email.toLowerCase().includes(searchAluno.toLowerCase())) || (a.cpf && a.cpf.includes(searchAluno)))
   const professoresFiltrados = professoresLista.filter(p => (p.nome || '').toLowerCase().includes(searchProfessor.toLowerCase()) || (p.email && p.email.toLowerCase().includes(searchProfessor.toLowerCase())))
@@ -475,13 +448,7 @@ function App() {
   const aulasDaTurma = aulas.filter(a => a.turma_id === diarioTurmaId)
   const turmaSelecionada = minhasTurmas.find(t => t.id === diarioTurmaId)
 
-  const stats = {
-    totalTurmas: turmas.length,
-    totalAlunos: alunos.length,
-    totalProfessores: professoresLista.length,
-    alunosAtivos: alunos.filter(a => a.status_pedagogico === 'ativo').length,
-    alunosPendentes: alunos.filter(a => a.status_financeiro === 'pendente' || a.status_financeiro === 'inadimplente').length,
-  }
+  const stats = { totalTurmas: turmas.length, totalAlunos: alunos.length, totalProfessores: professoresLista.length, alunosAtivos: alunos.filter(a => a.status_pedagogico === 'ativo').length, alunosPendentes: alunos.filter(a => a.status_financeiro === 'pendente' || a.status_financeiro === 'inadimplente').length }
 
   function formatCurrency(value) { if (!value) return '-'; return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value) }
 
@@ -503,8 +470,72 @@ function App() {
         <LoginScreen onLogin={handleLogin} />
       ) : (
         <div className="min-h-screen">
-          {/* Sidebar */}
-          <aside className="fixed left-0 top-0 h-full w-64 bg-white border-r border-surface-200 shadow-soft z-40">
+          {/* Mobile Header */}
+          <header className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white border-b border-surface-200 z-40 flex items-center justify-between px-4">
+            <div className="flex items-center gap-3">
+              <button onClick={() => setSidebarOpen(true)} className="p-2 -ml-2 rounded-lg hover:bg-surface-100">
+                <Menu className="w-6 h-6 text-surface-600" />
+              </button>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-gradient-to-br from-brand-500 to-accent-500 rounded-lg flex items-center justify-center">
+                  <Globe2 className="w-5 h-5 text-white" />
+                </div>
+                <span className="font-display font-bold text-surface-900">EduLingua</span>
+              </div>
+            </div>
+            <div className="w-8 h-8 bg-surface-100 rounded-full flex items-center justify-center">
+              <User className="w-4 h-4 text-surface-600" />
+            </div>
+          </header>
+
+          {/* Mobile Sidebar Overlay */}
+          {sidebarOpen && (
+            <div className="lg:hidden fixed inset-0 z-50 bg-black/50" onClick={() => setSidebarOpen(false)}>
+              <aside className="w-72 h-full bg-white shadow-xl" onClick={e => e.stopPropagation()}>
+                <div className="p-4 border-b border-surface-100 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-brand-500 to-accent-500 rounded-xl flex items-center justify-center">
+                      <Globe2 className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <h1 className="font-display font-bold text-surface-900">EduLingua</h1>
+                      <p className="text-xs text-surface-500">{usuario?.perfil === 'professor' ? 'Área do Professor' : 'Gestão de Turmas'}</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setSidebarOpen(false)} className="p-2 rounded-lg hover:bg-surface-100">
+                    <X className="w-5 h-5 text-surface-500" />
+                  </button>
+                </div>
+                <nav className="p-4 space-y-1">
+                  {menuItems.map(item => (
+                    <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all ${activeTab === item.id ? 'bg-brand-50 text-brand-600 font-medium' : 'text-surface-600 hover:bg-surface-50'}`}>
+                      <item.icon className="w-5 h-5" />{item.label}
+                    </button>
+                  ))}
+                </nav>
+                <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-surface-100">
+                  <div className="flex items-center gap-3 mb-3 p-2 bg-surface-50 rounded-xl">
+                    <div className="w-10 h-10 bg-surface-200 rounded-full flex items-center justify-center"><User className="w-5 h-5 text-surface-600" /></div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-surface-900 truncate">{usuario?.nome || 'Usuário'}</p>
+                      <p className="text-xs text-surface-500 truncate">{usuario?.email}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button onClick={() => { setModalSenha(true); setSidebarOpen(false) }} className="flex items-center justify-center gap-2 px-3 py-2 text-sm text-surface-600 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors">
+                      <Lock className="w-4 h-4" />Senha
+                    </button>
+                    <button onClick={handleLogout} className="flex items-center justify-center gap-2 px-3 py-2 text-sm text-surface-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                      <LogOut className="w-4 h-4" />Sair
+                    </button>
+                  </div>
+                </div>
+              </aside>
+            </div>
+          )}
+
+          {/* Desktop Sidebar */}
+          <aside className="hidden lg:block fixed left-0 top-0 h-full w-64 bg-white border-r border-surface-200 shadow-soft z-40">
             <div className="p-6">
               <div className="flex items-center gap-3 mb-8">
                 <div className="w-10 h-10 bg-gradient-to-br from-brand-500 to-accent-500 rounded-xl flex items-center justify-center">
@@ -542,116 +573,139 @@ function App() {
             </div>
           </aside>
 
-          {/* Main */}
-          <main className="ml-64 min-h-screen">
-            <div className="p-8">
+          {/* Main Content */}
+          <main className="lg:ml-64 min-h-screen pt-16 lg:pt-0">
+            <div className="p-4 sm:p-6 lg:p-8">
               {loading ? <LoadingSpinner /> : (
                 <>
                   {/* Dashboard */}
                   {activeTab === 'dashboard' && usuario?.perfil === 'admin' && (
                     <div className="animate-fade-in">
-                      <div className="mb-8">
-                        <h2 className="text-3xl font-display font-bold text-surface-900 mb-2">Dashboard</h2>
-                        <p className="text-surface-600">Visão geral da escola</p>
+                      <div className="mb-6 sm:mb-8">
+                        <h2 className="text-2xl sm:text-3xl font-display font-bold text-surface-900 mb-1 sm:mb-2">Dashboard</h2>
+                        <p className="text-surface-600 text-sm sm:text-base">Visão geral da escola</p>
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                        <div className="bg-white rounded-2xl p-6 shadow-card">
-                          <div className="flex items-center justify-between mb-4">
-                            <div className="w-12 h-12 bg-brand-100 rounded-xl flex items-center justify-center"><BookOpen className="w-6 h-6 text-brand-600" /></div>
-                            <span className="text-3xl font-display font-bold text-surface-900">{stats.totalTurmas}</span>
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-6 sm:mb-8">
+                        <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-card">
+                          <div className="flex items-center justify-between mb-3 sm:mb-4">
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-brand-100 rounded-lg sm:rounded-xl flex items-center justify-center"><BookOpen className="w-5 h-5 sm:w-6 sm:h-6 text-brand-600" /></div>
+                            <span className="text-2xl sm:text-3xl font-display font-bold text-surface-900">{stats.totalTurmas}</span>
                           </div>
-                          <h3 className="font-medium text-surface-900">Turmas</h3>
+                          <h3 className="font-medium text-surface-900 text-sm sm:text-base">Turmas</h3>
                         </div>
-                        <div className="bg-white rounded-2xl p-6 shadow-card">
-                          <div className="flex items-center justify-between mb-4">
-                            <div className="w-12 h-12 bg-accent-100 rounded-xl flex items-center justify-center"><Users className="w-6 h-6 text-accent-600" /></div>
-                            <span className="text-3xl font-display font-bold text-surface-900">{stats.totalAlunos}</span>
+                        <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-card">
+                          <div className="flex items-center justify-between mb-3 sm:mb-4">
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-accent-100 rounded-lg sm:rounded-xl flex items-center justify-center"><Users className="w-5 h-5 sm:w-6 sm:h-6 text-accent-600" /></div>
+                            <span className="text-2xl sm:text-3xl font-display font-bold text-surface-900">{stats.totalAlunos}</span>
                           </div>
-                          <h3 className="font-medium text-surface-900">Alunos</h3>
-                          <p className="text-sm text-surface-500">{stats.alunosAtivos} ativos</p>
+                          <h3 className="font-medium text-surface-900 text-sm sm:text-base">Alunos</h3>
+                          <p className="text-xs sm:text-sm text-surface-500">{stats.alunosAtivos} ativos</p>
                         </div>
-                        <div className="bg-white rounded-2xl p-6 shadow-card">
-                          <div className="flex items-center justify-between mb-4">
-                            <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center"><GraduationCap className="w-6 h-6 text-purple-600" /></div>
-                            <span className="text-3xl font-display font-bold text-surface-900">{stats.totalProfessores}</span>
+                        <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-card">
+                          <div className="flex items-center justify-between mb-3 sm:mb-4">
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-100 rounded-lg sm:rounded-xl flex items-center justify-center"><GraduationCap className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600" /></div>
+                            <span className="text-2xl sm:text-3xl font-display font-bold text-surface-900">{stats.totalProfessores}</span>
                           </div>
-                          <h3 className="font-medium text-surface-900">Professores</h3>
+                          <h3 className="font-medium text-surface-900 text-sm sm:text-base">Professores</h3>
                         </div>
-                        <div className="bg-white rounded-2xl p-6 shadow-card">
-                          <div className="flex items-center justify-between mb-4">
-                            <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center"><AlertCircle className="w-6 h-6 text-amber-600" /></div>
-                            <span className="text-3xl font-display font-bold text-surface-900">{stats.alunosPendentes}</span>
+                        <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-card">
+                          <div className="flex items-center justify-between mb-3 sm:mb-4">
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-amber-100 rounded-lg sm:rounded-xl flex items-center justify-center"><AlertCircle className="w-5 h-5 sm:w-6 sm:h-6 text-amber-600" /></div>
+                            <span className="text-2xl sm:text-3xl font-display font-bold text-surface-900">{stats.alunosPendentes}</span>
                           </div>
-                          <h3 className="font-medium text-surface-900">Pendentes</h3>
+                          <h3 className="font-medium text-surface-900 text-sm sm:text-base">Pendentes</h3>
                         </div>
                       </div>
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div className="bg-white rounded-2xl shadow-card overflow-hidden">
-                          <div className="px-6 py-4 border-b border-surface-100 flex items-center justify-between">
-                            <h3 className="font-display font-semibold text-surface-900">Turmas Recentes</h3>
-                            <button onClick={() => setActiveTab('turmas')} className="text-sm text-brand-600 hover:text-brand-700 font-medium flex items-center gap-1">Ver todas <ChevronRight className="w-4 h-4" /></button>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                        <div className="bg-white rounded-xl sm:rounded-2xl shadow-card overflow-hidden">
+                          <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-surface-100 flex items-center justify-between">
+                            <h3 className="font-display font-semibold text-surface-900 text-sm sm:text-base">Turmas Recentes</h3>
+                            <button onClick={() => setActiveTab('turmas')} className="text-xs sm:text-sm text-brand-600 hover:text-brand-700 font-medium flex items-center gap-1">Ver todas <ChevronRight className="w-4 h-4" /></button>
                           </div>
                           <div className="divide-y divide-surface-100">
                             {turmas.slice(0, 5).map(turma => (
-                              <div key={turma.id} className="px-6 py-4 flex items-center justify-between hover:bg-surface-50">
-                                <div className="flex items-center gap-4">
-                                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${IDIOMA_COLORS[turma.idioma] || 'bg-surface-100'}`}><Globe2 className="w-5 h-5" /></div>
+                              <div key={turma.id} className="px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between hover:bg-surface-50">
+                                <div className="flex items-center gap-3 sm:gap-4">
+                                  <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center ${IDIOMA_COLORS[turma.idioma] || 'bg-surface-100'}`}><Globe2 className="w-4 h-4 sm:w-5 sm:h-5" /></div>
                                   <div>
-                                    <p className="font-medium text-surface-900">{turma.nome}</p>
-                                    <p className="text-sm text-surface-500">{turma.idioma}</p>
+                                    <p className="font-medium text-surface-900 text-sm sm:text-base">{turma.nome}</p>
+                                    <p className="text-xs sm:text-sm text-surface-500">{turma.idioma}</p>
                                   </div>
                                 </div>
-                                <span className="text-sm text-surface-600">{turma.matriculas?.length || 0} alunos</span>
+                                <span className="text-xs sm:text-sm text-surface-600">{turma.matriculas?.length || 0} alunos</span>
                               </div>
                             ))}
-                            {turmas.length === 0 && <div className="px-6 py-8 text-center text-surface-500">Nenhuma turma</div>}
+                            {turmas.length === 0 && <div className="px-4 sm:px-6 py-6 sm:py-8 text-center text-surface-500 text-sm">Nenhuma turma</div>}
                           </div>
                         </div>
-                        <div className="bg-white rounded-2xl shadow-card overflow-hidden">
-                          <div className="px-6 py-4 border-b border-surface-100 flex items-center justify-between">
-                            <h3 className="font-display font-semibold text-surface-900">Alunos com Pendências</h3>
-                            <button onClick={() => setActiveTab('alunos')} className="text-sm text-brand-600 hover:text-brand-700 font-medium flex items-center gap-1">Ver todos <ChevronRight className="w-4 h-4" /></button>
+                        <div className="bg-white rounded-xl sm:rounded-2xl shadow-card overflow-hidden">
+                          <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-surface-100 flex items-center justify-between">
+                            <h3 className="font-display font-semibold text-surface-900 text-sm sm:text-base">Alunos com Pendências</h3>
+                            <button onClick={() => setActiveTab('alunos')} className="text-xs sm:text-sm text-brand-600 hover:text-brand-700 font-medium flex items-center gap-1">Ver todos <ChevronRight className="w-4 h-4" /></button>
                           </div>
                           <div className="divide-y divide-surface-100">
                             {alunos.filter(a => a.status_financeiro !== 'em_dia').slice(0, 5).map(aluno => (
-                              <div key={aluno.id} className="px-6 py-4 flex items-center justify-between hover:bg-surface-50">
-                                <div className="flex items-center gap-4">
-                                  <div className="w-10 h-10 bg-gradient-to-br from-brand-400 to-accent-400 rounded-full flex items-center justify-center text-white font-semibold text-sm">{(aluno.nome || '?').charAt(0).toUpperCase()}</div>
+                              <div key={aluno.id} className="px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between hover:bg-surface-50">
+                                <div className="flex items-center gap-3 sm:gap-4">
+                                  <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-brand-400 to-accent-400 rounded-full flex items-center justify-center text-white font-semibold text-xs sm:text-sm">{(aluno.nome || '?').charAt(0).toUpperCase()}</div>
                                   <div>
-                                    <p className="font-medium text-surface-900">{aluno.nome || 'Sem nome'}</p>
-                                    <p className="text-sm text-surface-500">Venc. dia {aluno.dia_vencimento || '-'}</p>
+                                    <p className="font-medium text-surface-900 text-sm sm:text-base">{aluno.nome || 'Sem nome'}</p>
+                                    <p className="text-xs sm:text-sm text-surface-500">Venc. dia {aluno.dia_vencimento || '-'}</p>
                                   </div>
                                 </div>
-                                <span className={`badge ${STATUS_COLORS[aluno.status_financeiro]}`}>{STATUS_LABELS[aluno.status_financeiro]}</span>
+                                <span className={`badge text-xs ${STATUS_COLORS[aluno.status_financeiro]}`}>{STATUS_LABELS[aluno.status_financeiro]}</span>
                               </div>
                             ))}
-                            {alunos.filter(a => a.status_financeiro !== 'em_dia').length === 0 && <div className="px-6 py-8 text-center text-surface-500">Todos em dia! 🎉</div>}
+                            {alunos.filter(a => a.status_financeiro !== 'em_dia').length === 0 && <div className="px-4 sm:px-6 py-6 sm:py-8 text-center text-surface-500 text-sm">Todos em dia! 🎉</div>}
                           </div>
                         </div>
                       </div>
                     </div>
                   )}
-
                   {/* Turmas */}
                   {activeTab === 'turmas' && usuario?.perfil === 'admin' && (
                     <div className="animate-fade-in">
-                      <div className="flex items-center justify-between mb-8">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
                         <div>
-                          <h2 className="text-3xl font-display font-bold text-surface-900 mb-2">Turmas</h2>
-                          <p className="text-surface-600">Gerencie as turmas</p>
+                          <h2 className="text-2xl sm:text-3xl font-display font-bold text-surface-900 mb-1 sm:mb-2">Turmas</h2>
+                          <p className="text-surface-600 text-sm sm:text-base">Gerencie as turmas</p>
                         </div>
-                        <button onClick={() => { resetFormTurma(); setModalTurma({ open: true, data: null }) }} className="flex items-center gap-2 px-5 py-3 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 shadow-lg shadow-brand-500/25">
+                        <button onClick={() => { resetFormTurma(); setModalTurma({ open: true, data: null }) }} className="flex items-center justify-center gap-2 px-4 sm:px-5 py-2.5 sm:py-3 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 shadow-lg shadow-brand-500/25 text-sm sm:text-base">
                           <Plus className="w-5 h-5" />Nova Turma
                         </button>
                       </div>
-                      <div className="bg-white rounded-2xl shadow-card overflow-hidden">
-                        <div className="px-6 py-4 border-b border-surface-100">
-                          <div className="relative max-w-md">
+                      <div className="bg-white rounded-xl sm:rounded-2xl shadow-card overflow-hidden">
+                        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-surface-100">
+                          <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400" />
-                            <input type="text" placeholder="Buscar turmas..." value={searchTurma} onChange={(e) => setSearchTurma(e.target.value)} className="w-full pl-10 pr-4 py-2.5 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20" />
+                            <input type="text" placeholder="Buscar turmas..." value={searchTurma} onChange={(e) => setSearchTurma(e.target.value)} className="w-full pl-10 pr-4 py-2.5 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 text-sm sm:text-base" />
                           </div>
                         </div>
-                        <div className="divide-y divide-surface-100">
+                        <div className="sm:hidden divide-y divide-surface-100">
+                          {turmasFiltradas.map(turma => (
+                            <div key={turma.id} className="p-4">
+                              <div className="flex items-start gap-3 mb-3">
+                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${IDIOMA_COLORS[turma.idioma] || 'bg-surface-100'}`}><Globe2 className="w-5 h-5" /></div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-semibold text-surface-900">{turma.nome}</p>
+                                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                    <span className={`badge text-xs ${IDIOMA_COLORS[turma.idioma] || 'bg-surface-100 text-surface-600'}`}>{turma.idioma}</span>
+                                    <span className="text-xs text-surface-500">{turma.matriculas?.length || 0} alunos</span>
+                                  </div>
+                                </div>
+                              </div>
+                              {turma.professor && <p className="text-xs text-surface-500 mb-1">Prof. {turma.professor.nome}</p>}
+                              {turma.horario && <p className="text-xs text-surface-500 flex items-center gap-1 mb-3"><Clock className="w-3 h-3" />{turma.horario}</p>}
+                              <div className="flex items-center gap-2 pt-3 border-t border-surface-100">
+                                <button onClick={() => setModalDetalheTurma({ open: true, turma })} className="flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-lg bg-surface-50 text-surface-600 text-sm"><Users className="w-4 h-4" />Alunos</button>
+                                <button onClick={() => setModalMatricula({ open: true, turmaId: turma.id })} className="flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-lg bg-brand-50 text-brand-600 text-sm"><UserPlus className="w-4 h-4" />Matricular</button>
+                                <button onClick={() => openEditTurma(turma)} className="p-2 rounded-lg hover:bg-surface-100 text-surface-500"><Edit2 className="w-4 h-4" /></button>
+                                <button onClick={() => deleteTurma(turma.id)} className="p-2 rounded-lg hover:bg-red-50 text-red-500"><Trash2 className="w-4 h-4" /></button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="hidden sm:block divide-y divide-surface-100">
                           {turmasFiltradas.map(turma => (
                             <div key={turma.id} className="px-6 py-4 flex items-center justify-between table-row-hover">
                               <div className="flex items-center gap-4">
@@ -666,22 +720,19 @@ function App() {
                                 </div>
                               </div>
                               <div className="flex items-center gap-6">
-                                <div className="text-right">
-                                  <p className="font-semibold text-surface-900">{turma.matriculas?.length || 0}</p>
-                                  <p className="text-xs text-surface-500">alunos</p>
-                                </div>
+                                <div className="text-right"><p className="font-semibold text-surface-900">{turma.matriculas?.length || 0}</p><p className="text-xs text-surface-500">alunos</p></div>
                                 {turma.horario && <div className="flex items-center gap-1.5 text-surface-500"><Clock className="w-4 h-4" /><span className="text-sm">{turma.horario}</span></div>}
                                 <div className="flex items-center gap-1">
-                                  <button onClick={() => setModalDetalheTurma({ open: true, turma })} className="p-2 rounded-lg hover:bg-surface-100 text-surface-500" title="Ver alunos"><Users className="w-5 h-5" /></button>
-                                  <button onClick={() => setModalMatricula({ open: true, turmaId: turma.id })} className="p-2 rounded-lg hover:bg-brand-50 text-brand-600" title="Adicionar aluno"><UserPlus className="w-5 h-5" /></button>
-                                  <button onClick={() => openEditTurma(turma)} className="p-2 rounded-lg hover:bg-surface-100 text-surface-500" title="Editar"><Edit2 className="w-5 h-5" /></button>
-                                  <button onClick={() => deleteTurma(turma.id)} className="p-2 rounded-lg hover:bg-red-50 text-red-500" title="Excluir"><Trash2 className="w-5 h-5" /></button>
+                                  <button onClick={() => setModalDetalheTurma({ open: true, turma })} className="p-2 rounded-lg hover:bg-surface-100 text-surface-500"><Users className="w-5 h-5" /></button>
+                                  <button onClick={() => setModalMatricula({ open: true, turmaId: turma.id })} className="p-2 rounded-lg hover:bg-brand-50 text-brand-600"><UserPlus className="w-5 h-5" /></button>
+                                  <button onClick={() => openEditTurma(turma)} className="p-2 rounded-lg hover:bg-surface-100 text-surface-500"><Edit2 className="w-5 h-5" /></button>
+                                  <button onClick={() => deleteTurma(turma.id)} className="p-2 rounded-lg hover:bg-red-50 text-red-500"><Trash2 className="w-5 h-5" /></button>
                                 </div>
                               </div>
                             </div>
                           ))}
-                          {turmasFiltradas.length === 0 && <div className="px-6 py-12 text-center"><BookOpen className="w-12 h-12 text-surface-300 mx-auto mb-4" /><p className="text-surface-500">Nenhuma turma</p></div>}
                         </div>
+                        {turmasFiltradas.length === 0 && <div className="px-4 sm:px-6 py-8 sm:py-12 text-center"><BookOpen className="w-10 h-10 sm:w-12 sm:h-12 text-surface-300 mx-auto mb-4" /><p className="text-surface-500 text-sm sm:text-base">Nenhuma turma</p></div>}
                       </div>
                     </div>
                   )}
@@ -689,23 +740,51 @@ function App() {
                   {/* Alunos */}
                   {activeTab === 'alunos' && usuario?.perfil === 'admin' && (
                     <div className="animate-fade-in">
-                      <div className="flex items-center justify-between mb-8">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
                         <div>
-                          <h2 className="text-3xl font-display font-bold text-surface-900 mb-2">Alunos</h2>
-                          <p className="text-surface-600">Gerencie os alunos</p>
+                          <h2 className="text-2xl sm:text-3xl font-display font-bold text-surface-900 mb-1 sm:mb-2">Alunos</h2>
+                          <p className="text-surface-600 text-sm sm:text-base">Gerencie os alunos</p>
                         </div>
-                        <button onClick={() => { resetFormAluno(); setModalAluno({ open: true, data: null }) }} className="flex items-center gap-2 px-5 py-3 bg-accent-600 text-white rounded-xl font-medium hover:bg-accent-700 shadow-lg shadow-accent-500/25">
+                        <button onClick={() => { resetFormAluno(); setModalAluno({ open: true, data: null }) }} className="flex items-center justify-center gap-2 px-4 sm:px-5 py-2.5 sm:py-3 bg-accent-600 text-white rounded-xl font-medium hover:bg-accent-700 shadow-lg shadow-accent-500/25 text-sm sm:text-base">
                           <Plus className="w-5 h-5" />Novo Aluno
                         </button>
                       </div>
-                      <div className="bg-white rounded-2xl shadow-card overflow-hidden">
-                        <div className="px-6 py-4 border-b border-surface-100">
-                          <div className="relative max-w-md">
+                      <div className="bg-white rounded-xl sm:rounded-2xl shadow-card overflow-hidden">
+                        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-surface-100">
+                          <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400" />
-                            <input type="text" placeholder="Buscar por nome, email ou CPF..." value={searchAluno} onChange={(e) => setSearchAluno(e.target.value)} className="w-full pl-10 pr-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20" />
+                            <input type="text" placeholder="Buscar por nome, email ou CPF..." value={searchAluno} onChange={(e) => setSearchAluno(e.target.value)} className="w-full pl-10 pr-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 text-sm sm:text-base" />
                           </div>
                         </div>
-                        <div className="divide-y divide-surface-100">
+                        <div className="sm:hidden divide-y divide-surface-100">
+                          {alunosFiltrados.map(aluno => (
+                            <div key={aluno.id} className="p-4">
+                              <div className="flex items-center gap-3 mb-3">
+                                <div className="w-10 h-10 bg-gradient-to-br from-brand-400 to-accent-400 rounded-full flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">{(aluno.nome || '?').charAt(0).toUpperCase()}</div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-semibold text-surface-900 truncate">{aluno.nome || 'Sem nome'}</p>
+                                  <p className="text-xs text-surface-500 truncate">{aluno.email || aluno.telefone || 'Sem contato'}</p>
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap gap-1 mb-3">
+                                <span className={`badge text-xs ${STATUS_COLORS[aluno.status_pedagogico]}`}>{STATUS_LABELS[aluno.status_pedagogico]}</span>
+                                <span className={`badge text-xs ${STATUS_COLORS[aluno.status_financeiro]}`}>{STATUS_LABELS[aluno.status_financeiro]}</span>
+                              </div>
+                              {aluno.matriculas?.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mb-3">
+                                  {aluno.matriculas?.slice(0, 2).map(m => <span key={m.id} className={`badge text-xs ${IDIOMA_COLORS[m.turmas?.idioma] || 'bg-surface-100 text-surface-600'}`}>{m.turmas?.nome}</span>)}
+                                  {(aluno.matriculas?.length || 0) > 2 && <span className="badge bg-surface-100 text-surface-600 text-xs">+{aluno.matriculas.length - 2}</span>}
+                                </div>
+                              )}
+                              <div className="flex items-center gap-2 pt-3 border-t border-surface-100">
+                                <button onClick={() => setModalDetalheAluno({ open: true, aluno })} className="flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-lg bg-surface-50 text-surface-600 text-sm"><Eye className="w-4 h-4" />Ver</button>
+                                <button onClick={() => openEditAluno(aluno)} className="flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-lg bg-accent-50 text-accent-600 text-sm"><Edit2 className="w-4 h-4" />Editar</button>
+                                <button onClick={() => deleteAluno(aluno.id)} className="p-2 rounded-lg hover:bg-red-50 text-red-500"><Trash2 className="w-4 h-4" /></button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="hidden sm:block divide-y divide-surface-100">
                           {alunosFiltrados.map(aluno => (
                             <div key={aluno.id} className="px-6 py-4 flex items-center justify-between table-row-hover">
                               <div className="flex items-center gap-4">
@@ -723,15 +802,15 @@ function App() {
                                 <span className={`badge ${STATUS_COLORS[aluno.status_pedagogico]}`}>{STATUS_LABELS[aluno.status_pedagogico]}</span>
                                 <span className={`badge ${STATUS_COLORS[aluno.status_financeiro]}`}>{STATUS_LABELS[aluno.status_financeiro]}</span>
                                 <div className="flex items-center gap-1">
-                                  <button onClick={() => setModalDetalheAluno({ open: true, aluno })} className="p-2 rounded-lg hover:bg-surface-100 text-surface-500" title="Ver"><Eye className="w-5 h-5" /></button>
-                                  <button onClick={() => openEditAluno(aluno)} className="p-2 rounded-lg hover:bg-surface-100 text-surface-500" title="Editar"><Edit2 className="w-5 h-5" /></button>
-                                  <button onClick={() => deleteAluno(aluno.id)} className="p-2 rounded-lg hover:bg-red-50 text-red-500" title="Excluir"><Trash2 className="w-5 h-5" /></button>
+                                  <button onClick={() => setModalDetalheAluno({ open: true, aluno })} className="p-2 rounded-lg hover:bg-surface-100 text-surface-500"><Eye className="w-5 h-5" /></button>
+                                  <button onClick={() => openEditAluno(aluno)} className="p-2 rounded-lg hover:bg-surface-100 text-surface-500"><Edit2 className="w-5 h-5" /></button>
+                                  <button onClick={() => deleteAluno(aluno.id)} className="p-2 rounded-lg hover:bg-red-50 text-red-500"><Trash2 className="w-5 h-5" /></button>
                                 </div>
                               </div>
                             </div>
                           ))}
-                          {alunosFiltrados.length === 0 && <div className="px-6 py-12 text-center"><Users className="w-12 h-12 text-surface-300 mx-auto mb-4" /><p className="text-surface-500">Nenhum aluno</p></div>}
                         </div>
+                        {alunosFiltrados.length === 0 && <div className="px-4 sm:px-6 py-8 sm:py-12 text-center"><Users className="w-10 h-10 sm:w-12 sm:h-12 text-surface-300 mx-auto mb-4" /><p className="text-surface-500 text-sm sm:text-base">Nenhum aluno</p></div>}
                       </div>
                     </div>
                   )}
@@ -739,23 +818,49 @@ function App() {
                   {/* Professores */}
                   {activeTab === 'professores' && usuario?.perfil === 'admin' && (
                     <div className="animate-fade-in">
-                      <div className="flex items-center justify-between mb-8">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
                         <div>
-                          <h2 className="text-3xl font-display font-bold text-surface-900 mb-2">Professores</h2>
-                          <p className="text-surface-600">Gerencie os professores</p>
+                          <h2 className="text-2xl sm:text-3xl font-display font-bold text-surface-900 mb-1 sm:mb-2">Professores</h2>
+                          <p className="text-surface-600 text-sm sm:text-base">Gerencie os professores</p>
                         </div>
-                        <button onClick={() => { setFormProfessor({ nome: '', email: '', senha: '' }); setModalProfessor({ open: true, data: null }) }} className="flex items-center gap-2 px-5 py-3 bg-purple-600 text-white rounded-xl font-medium hover:bg-purple-700 shadow-lg shadow-purple-500/25">
+                        <button onClick={() => { setFormProfessor({ nome: '', email: '', senha: '' }); setModalProfessor({ open: true, data: null }) }} className="flex items-center justify-center gap-2 px-4 sm:px-5 py-2.5 sm:py-3 bg-purple-600 text-white rounded-xl font-medium hover:bg-purple-700 shadow-lg shadow-purple-500/25 text-sm sm:text-base">
                           <Plus className="w-5 h-5" />Novo Professor
                         </button>
                       </div>
-                      <div className="bg-white rounded-2xl shadow-card overflow-hidden">
-                        <div className="px-6 py-4 border-b border-surface-100">
-                          <div className="relative max-w-md">
+                      <div className="bg-white rounded-xl sm:rounded-2xl shadow-card overflow-hidden">
+                        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-surface-100">
+                          <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400" />
-                            <input type="text" placeholder="Buscar professores..." value={searchProfessor} onChange={(e) => setSearchProfessor(e.target.value)} className="w-full pl-10 pr-4 py-2.5 border border-surface-200 rounded-xl focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20" />
+                            <input type="text" placeholder="Buscar professores..." value={searchProfessor} onChange={(e) => setSearchProfessor(e.target.value)} className="w-full pl-10 pr-4 py-2.5 border border-surface-200 rounded-xl focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 text-sm sm:text-base" />
                           </div>
                         </div>
-                        <div className="divide-y divide-surface-100">
+                        <div className="sm:hidden divide-y divide-surface-100">
+                          {professoresFiltrados.map(professor => {
+                            const turmasDoProfessor = turmas.filter(t => t.professor_id === professor.id)
+                            return (
+                              <div key={professor.id} className="p-4">
+                                <div className="flex items-center gap-3 mb-3">
+                                  <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">{(professor.nome || '?').charAt(0).toUpperCase()}</div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-semibold text-surface-900 truncate">{professor.nome || 'Sem nome'}</p>
+                                    <p className="text-xs text-surface-500 truncate">{professor.email}</p>
+                                  </div>
+                                </div>
+                                {turmasDoProfessor.length > 0 ? (
+                                  <div className="flex flex-wrap gap-1 mb-3">
+                                    {turmasDoProfessor.slice(0, 3).map(t => <span key={t.id} className={`badge text-xs ${IDIOMA_COLORS[t.idioma] || 'bg-surface-100 text-surface-600'}`}>{t.nome}</span>)}
+                                    {turmasDoProfessor.length > 3 && <span className="badge bg-surface-100 text-surface-600 text-xs">+{turmasDoProfessor.length - 3}</span>}
+                                  </div>
+                                ) : <p className="text-xs text-surface-400 mb-3">Sem turmas</p>}
+                                <div className="flex items-center gap-2 pt-3 border-t border-surface-100">
+                                  <button onClick={() => openEditProfessor(professor)} className="flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-lg bg-purple-50 text-purple-600 text-sm"><Edit2 className="w-4 h-4" />Editar</button>
+                                  <button onClick={() => deleteProfessor(professor.id)} className="p-2 rounded-lg hover:bg-red-50 text-red-500"><Trash2 className="w-4 h-4" /></button>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                        <div className="hidden sm:block divide-y divide-surface-100">
                           {professoresFiltrados.map(professor => {
                             const turmasDoProfessor = turmas.filter(t => t.professor_id === professor.id)
                             return (
@@ -774,15 +879,15 @@ function App() {
                                     {turmasDoProfessor.length === 0 && <span className="text-sm text-surface-400">Sem turmas</span>}
                                   </div>
                                   <div className="flex items-center gap-1">
-                                    <button onClick={() => openEditProfessor(professor)} className="p-2 rounded-lg hover:bg-surface-100 text-surface-500" title="Editar"><Edit2 className="w-5 h-5" /></button>
-                                    <button onClick={() => deleteProfessor(professor.id)} className="p-2 rounded-lg hover:bg-red-50 text-red-500" title="Excluir"><Trash2 className="w-5 h-5" /></button>
+                                    <button onClick={() => openEditProfessor(professor)} className="p-2 rounded-lg hover:bg-surface-100 text-surface-500"><Edit2 className="w-5 h-5" /></button>
+                                    <button onClick={() => deleteProfessor(professor.id)} className="p-2 rounded-lg hover:bg-red-50 text-red-500"><Trash2 className="w-5 h-5" /></button>
                                   </div>
                                 </div>
                               </div>
                             )
                           })}
-                          {professoresFiltrados.length === 0 && <div className="px-6 py-12 text-center"><GraduationCap className="w-12 h-12 text-surface-300 mx-auto mb-4" /><p className="text-surface-500">Nenhum professor</p></div>}
                         </div>
+                        {professoresFiltrados.length === 0 && <div className="px-4 sm:px-6 py-8 sm:py-12 text-center"><GraduationCap className="w-10 h-10 sm:w-12 sm:h-12 text-surface-300 mx-auto mb-4" /><p className="text-surface-500 text-sm sm:text-base">Nenhum professor</p></div>}
                       </div>
                     </div>
                   )}
@@ -790,29 +895,53 @@ function App() {
                   {/* Diário de Classe */}
                   {activeTab === 'diario' && (
                     <div className="animate-fade-in">
-                      <div className="mb-8">
-                        <h2 className="text-3xl font-display font-bold text-surface-900 mb-2">Diário de Classe</h2>
-                        <p className="text-surface-600">Registre aulas e controle presença</p>
+                      <div className="mb-6 sm:mb-8">
+                        <h2 className="text-2xl sm:text-3xl font-display font-bold text-surface-900 mb-1 sm:mb-2">Diário de Classe</h2>
+                        <p className="text-surface-600 text-sm sm:text-base">Registre aulas e controle presença</p>
                       </div>
-                      <div className="bg-white rounded-2xl shadow-card p-6 mb-6">
+                      <div className="bg-white rounded-xl sm:rounded-2xl shadow-card p-4 sm:p-6 mb-4 sm:mb-6">
                         <label className="block text-sm font-medium text-surface-700 mb-2">Selecione a Turma</label>
-                        <select value={diarioTurmaId} onChange={(e) => setDiarioTurmaId(e.target.value)} className="w-full max-w-md px-4 py-3 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20">
+                        <select value={diarioTurmaId} onChange={(e) => setDiarioTurmaId(e.target.value)} className="w-full px-4 py-3 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 text-sm sm:text-base">
                           <option value="">Escolha uma turma...</option>
                           {minhasTurmas.map(t => <option key={t.id} value={t.id}>{t.nome} - {t.idioma}</option>)}
                         </select>
                       </div>
                       {diarioTurmaId && turmaSelecionada && (
-                        <div className="bg-white rounded-2xl shadow-card overflow-hidden">
-                          <div className="px-6 py-4 border-b border-surface-100 flex items-center justify-between">
+                        <div className="bg-white rounded-xl sm:rounded-2xl shadow-card overflow-hidden">
+                          <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-surface-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                             <div>
                               <h3 className="font-display font-semibold text-surface-900">{turmaSelecionada.nome}</h3>
-                              <p className="text-sm text-surface-500">{turmaSelecionada.matriculas?.length || 0} alunos{turmaSelecionada.livro && ` • ${turmaSelecionada.livro}`}</p>
+                              <p className="text-xs sm:text-sm text-surface-500">{turmaSelecionada.matriculas?.length || 0} alunos{turmaSelecionada.livro && ` • ${turmaSelecionada.livro}`}</p>
                             </div>
-                            <button onClick={() => openNovaAula(turmaSelecionada)} className="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700">
+                            <button onClick={() => openNovaAula(turmaSelecionada)} className="flex items-center justify-center gap-2 px-4 py-2 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 text-sm">
                               <Plus className="w-4 h-4" />Registrar Aula
                             </button>
                           </div>
-                          <div className="divide-y divide-surface-100">
+                          <div className="sm:hidden divide-y divide-surface-100">
+                            {aulasDaTurma.map(aula => {
+                              const presentes = aula.presencas?.filter(p => p.presente).length || 0
+                              const total = aula.presencas?.length || 0
+                              return (
+                                <div key={aula.id} className="p-4">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-10 h-10 bg-surface-100 rounded-xl flex items-center justify-center"><ClipboardList className="w-5 h-5 text-surface-600" /></div>
+                                      <div>
+                                        <p className="font-semibold text-surface-900">{new Date(aula.data + 'T12:00:00').toLocaleDateString('pt-BR')}</p>
+                                        <p className="text-xs text-surface-500">{aula.unidade_livro || 'Sem unidade'}</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-1 text-sm"><UserCheck className="w-4 h-4 text-emerald-500" /><span className="font-medium">{presentes}/{total}</span></div>
+                                  </div>
+                                  <div className="flex items-center gap-2 pt-3 border-t border-surface-100">
+                                    <button onClick={() => openEditAula(aula, turmaSelecionada)} className="flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-lg bg-surface-50 text-surface-600 text-sm"><Edit2 className="w-4 h-4" />Editar</button>
+                                    <button onClick={() => deleteAula(aula.id)} className="p-2 rounded-lg hover:bg-red-50 text-red-500"><Trash2 className="w-4 h-4" /></button>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                          <div className="hidden sm:block divide-y divide-surface-100">
                             {aulasDaTurma.map(aula => {
                               const presentes = aula.presencas?.filter(p => p.presente).length || 0
                               const total = aula.presencas?.length || 0
@@ -828,18 +957,18 @@ function App() {
                                   <div className="flex items-center gap-4">
                                     <div className="flex items-center gap-2"><UserCheck className="w-4 h-4 text-emerald-500" /><span className="text-sm font-medium">{presentes}/{total}</span></div>
                                     <div className="flex items-center gap-1">
-                                      <button onClick={() => openEditAula(aula, turmaSelecionada)} className="p-2 rounded-lg hover:bg-surface-100 text-surface-500" title="Editar"><Edit2 className="w-5 h-5" /></button>
-                                      <button onClick={() => deleteAula(aula.id)} className="p-2 rounded-lg hover:bg-red-50 text-red-500" title="Excluir"><Trash2 className="w-5 h-5" /></button>
+                                      <button onClick={() => openEditAula(aula, turmaSelecionada)} className="p-2 rounded-lg hover:bg-surface-100 text-surface-500"><Edit2 className="w-5 h-5" /></button>
+                                      <button onClick={() => deleteAula(aula.id)} className="p-2 rounded-lg hover:bg-red-50 text-red-500"><Trash2 className="w-5 h-5" /></button>
                                     </div>
                                   </div>
                                 </div>
                               )
                             })}
-                            {aulasDaTurma.length === 0 && <div className="px-6 py-12 text-center"><ClipboardList className="w-12 h-12 text-surface-300 mx-auto mb-4" /><p className="text-surface-500">Nenhuma aula registrada</p></div>}
                           </div>
+                          {aulasDaTurma.length === 0 && <div className="px-4 sm:px-6 py-8 sm:py-12 text-center"><ClipboardList className="w-10 h-10 sm:w-12 sm:h-12 text-surface-300 mx-auto mb-4" /><p className="text-surface-500 text-sm sm:text-base">Nenhuma aula registrada</p></div>}
                         </div>
                       )}
-                      {!diarioTurmaId && <div className="bg-white rounded-2xl shadow-card p-12 text-center"><BookOpen className="w-16 h-16 text-surface-300 mx-auto mb-4" /><p className="text-surface-500">Selecione uma turma</p></div>}
+                      {!diarioTurmaId && <div className="bg-white rounded-xl sm:rounded-2xl shadow-card p-8 sm:p-12 text-center"><BookOpen className="w-12 h-12 sm:w-16 sm:h-16 text-surface-300 mx-auto mb-4" /><p className="text-surface-500 text-sm sm:text-base">Selecione uma turma</p></div>}
                     </div>
                   )}
                 </>
@@ -852,44 +981,40 @@ function App() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-surface-700 mb-1">Nome da Turma *</label>
-                <input type="text" value={formTurma.nome} onChange={(e) => setFormTurma({ ...formTurma, nome: e.target.value })} placeholder="Ex: Inglês Básico - Segunda 19h" className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20" />
+                <input type="text" value={formTurma.nome} onChange={(e) => setFormTurma({ ...formTurma, nome: e.target.value })} placeholder="Ex: Inglês Básico - Segunda 19h" className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 text-sm sm:text-base" />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-surface-700 mb-1">Idioma *</label>
-                  <select value={formTurma.idioma} onChange={(e) => setFormTurma({ ...formTurma, idioma: e.target.value })} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20">
+                  <select value={formTurma.idioma} onChange={(e) => setFormTurma({ ...formTurma, idioma: e.target.value })} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 text-sm sm:text-base">
                     {IDIOMAS.map(i => <option key={i} value={i}>{i}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-surface-700 mb-1">Professor</label>
-                  <select value={formTurma.professor_id} onChange={(e) => setFormTurma({ ...formTurma, professor_id: e.target.value })} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20">
+                  <select value={formTurma.professor_id} onChange={(e) => setFormTurma({ ...formTurma, professor_id: e.target.value })} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 text-sm sm:text-base">
                     <option value="">Selecione...</option>
-                    {usuariosParaDropdown.map(u => (
-                      <option key={u.id} value={u.id}>
-                        {u.nome}{u.perfil === 'admin' ? ' (Admin)' : ''}
-                      </option>
-                    ))}
+                    {usuariosParaDropdown.map(u => <option key={u.id} value={u.id}>{u.nome}{u.perfil === 'admin' ? ' (Admin)' : ''}</option>)}
                   </select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-surface-700 mb-1">Horário</label>
-                  <input type="text" value={formTurma.horario} onChange={(e) => setFormTurma({ ...formTurma, horario: e.target.value })} placeholder="Ex: 19:00 - 21:00" className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20" />
+                  <input type="text" value={formTurma.horario} onChange={(e) => setFormTurma({ ...formTurma, horario: e.target.value })} placeholder="Ex: 19:00 - 21:00" className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 text-sm sm:text-base" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-surface-700 mb-1">Dias da Semana</label>
-                  <input type="text" value={formTurma.dias_semana} onChange={(e) => setFormTurma({ ...formTurma, dias_semana: e.target.value })} placeholder="Ex: Seg, Qua, Sex" className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20" />
+                  <input type="text" value={formTurma.dias_semana} onChange={(e) => setFormTurma({ ...formTurma, dias_semana: e.target.value })} placeholder="Ex: Seg, Qua, Sex" className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 text-sm sm:text-base" />
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-surface-700 mb-1">Livro</label>
-                <input type="text" value={formTurma.livro} onChange={(e) => setFormTurma({ ...formTurma, livro: e.target.value })} placeholder="Ex: English File Intermediate" className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20" />
+                <input type="text" value={formTurma.livro} onChange={(e) => setFormTurma({ ...formTurma, livro: e.target.value })} placeholder="Ex: English File Intermediate" className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 text-sm sm:text-base" />
               </div>
               <div className="flex gap-3 pt-4">
-                <button onClick={() => setModalTurma({ open: false, data: null })} className="flex-1 px-4 py-2.5 border border-surface-200 rounded-xl font-medium text-surface-700 hover:bg-surface-50">Cancelar</button>
-                <button onClick={saveTurma} disabled={!formTurma.nome} className="flex-1 px-4 py-2.5 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 disabled:opacity-50">{modalTurma.data ? 'Salvar' : 'Criar Turma'}</button>
+                <button onClick={() => setModalTurma({ open: false, data: null })} className="flex-1 px-4 py-2.5 border border-surface-200 rounded-xl font-medium text-surface-700 hover:bg-surface-50 text-sm sm:text-base">Cancelar</button>
+                <button onClick={saveTurma} disabled={!formTurma.nome} className="flex-1 px-4 py-2.5 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 disabled:opacity-50 text-sm sm:text-base">{modalTurma.data ? 'Salvar' : 'Criar Turma'}</button>
               </div>
             </div>
           </Modal>
@@ -897,36 +1022,36 @@ function App() {
           {/* Modal Aluno */}
           <Modal isOpen={modalAluno.open} onClose={() => setModalAluno({ open: false, data: null })} title={modalAluno.data ? 'Editar Aluno' : 'Novo Aluno'} size="xl">
             <div>
-              <div className="flex gap-1 p-1 bg-surface-100 rounded-xl mb-6">
-                {[{ id: 'pessoais', icon: User, label: 'Dados Pessoais' }, { id: 'pedagogico', icon: GraduationCap, label: 'Pedagógico' }, { id: 'financeiro', icon: DollarSign, label: 'Financeiro' }].map(tab => (
-                  <button key={tab.id} onClick={() => setAlunoTab(tab.id)} className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium transition-all ${alunoTab === tab.id ? 'bg-white text-surface-900 shadow-sm' : 'text-surface-600 hover:text-surface-900'}`}>
+              <div className="flex gap-1 p-1 bg-surface-100 rounded-xl mb-4 sm:mb-6 overflow-x-auto">
+                {[{ id: 'pessoais', icon: User, label: 'Pessoais' }, { id: 'pedagogico', icon: GraduationCap, label: 'Pedagógico' }, { id: 'financeiro', icon: DollarSign, label: 'Financeiro' }].map(tab => (
+                  <button key={tab.id} onClick={() => setAlunoTab(tab.id)} className={`flex-1 flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg font-medium transition-all text-xs sm:text-sm whitespace-nowrap ${alunoTab === tab.id ? 'bg-white text-surface-900 shadow-sm' : 'text-surface-600 hover:text-surface-900'}`}>
                     <tab.icon className="w-4 h-4" />{tab.label}
                   </button>
                 ))}
               </div>
               {alunoTab === 'pessoais' && (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="col-span-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="sm:col-span-2">
                       <label className="block text-sm font-medium text-surface-700 mb-1">Nome Completo</label>
-                      <input type="text" value={formAluno.nome} onChange={(e) => setFormAluno({ ...formAluno, nome: e.target.value })} placeholder="Nome do aluno" className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20" />
+                      <input type="text" value={formAluno.nome} onChange={(e) => setFormAluno({ ...formAluno, nome: e.target.value })} placeholder="Nome do aluno" className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 text-sm" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-surface-700 mb-1">CPF</label>
-                      <input type="text" value={formAluno.cpf} onChange={(e) => setFormAluno({ ...formAluno, cpf: e.target.value })} placeholder="000.000.000-00" className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20" />
+                      <input type="text" value={formAluno.cpf} onChange={(e) => setFormAluno({ ...formAluno, cpf: e.target.value })} placeholder="000.000.000-00" className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 text-sm" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-surface-700 mb-1">RG</label>
-                      <input type="text" value={formAluno.rg} onChange={(e) => setFormAluno({ ...formAluno, rg: e.target.value })} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20" />
+                      <input type="text" value={formAluno.rg} onChange={(e) => setFormAluno({ ...formAluno, rg: e.target.value })} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 text-sm" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-surface-700 mb-1">Aniversário</label>
                       <div className="grid grid-cols-2 gap-2">
-                        <select value={formAluno.aniversario_dia} onChange={(e) => setFormAluno({ ...formAluno, aniversario_dia: e.target.value })} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20">
+                        <select value={formAluno.aniversario_dia} onChange={(e) => setFormAluno({ ...formAluno, aniversario_dia: e.target.value })} className="w-full px-3 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 text-sm">
                           <option value="">Dia</option>
                           {[...Array(31)].map((_, i) => <option key={i + 1} value={i + 1}>{i + 1}</option>)}
                         </select>
-                        <select value={formAluno.aniversario_mes} onChange={(e) => setFormAluno({ ...formAluno, aniversario_mes: e.target.value })} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20">
+                        <select value={formAluno.aniversario_mes} onChange={(e) => setFormAluno({ ...formAluno, aniversario_mes: e.target.value })} className="w-full px-3 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 text-sm">
                           <option value="">Mês</option>
                           {['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'].map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
                         </select>
@@ -934,39 +1059,39 @@ function App() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-surface-700 mb-1">Telefone</label>
-                      <input type="text" value={formAluno.telefone} onChange={(e) => setFormAluno({ ...formAluno, telefone: e.target.value })} placeholder="(00) 00000-0000" className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20" />
+                      <input type="text" value={formAluno.telefone} onChange={(e) => setFormAluno({ ...formAluno, telefone: e.target.value })} placeholder="(00) 00000-0000" className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 text-sm" />
                     </div>
-                    <div className="col-span-2">
+                    <div className="sm:col-span-2">
                       <label className="block text-sm font-medium text-surface-700 mb-1">Email</label>
-                      <input type="email" value={formAluno.email} onChange={(e) => setFormAluno({ ...formAluno, email: e.target.value })} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20" />
+                      <input type="email" value={formAluno.email} onChange={(e) => setFormAluno({ ...formAluno, email: e.target.value })} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 text-sm" />
                     </div>
                   </div>
                   <div className="pt-4 border-t border-surface-100">
-                    <h4 className="font-medium text-surface-900 mb-4 flex items-center gap-2"><MapPin className="w-4 h-4" />Endereço</h4>
-                    <div className="grid grid-cols-4 gap-4">
-                      <div>
+                    <h4 className="font-medium text-surface-900 mb-4 flex items-center gap-2 text-sm"><MapPin className="w-4 h-4" />Endereço</h4>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+                      <div className="col-span-1">
                         <label className="block text-sm font-medium text-surface-700 mb-1">CEP</label>
-                        <input type="text" value={formAluno.cep} onChange={(e) => setFormAluno({ ...formAluno, cep: e.target.value })} onBlur={(e) => buscarCep(e.target.value)} placeholder="00000-000" className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20" />
+                        <input type="text" value={formAluno.cep} onChange={(e) => setFormAluno({ ...formAluno, cep: e.target.value })} onBlur={(e) => buscarCep(e.target.value)} placeholder="00000-000" className="w-full px-3 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 text-sm" />
                       </div>
-                      <div className="col-span-2">
+                      <div className="col-span-2 sm:col-span-2">
                         <label className="block text-sm font-medium text-surface-700 mb-1">Rua</label>
-                        <input type="text" value={formAluno.rua} onChange={(e) => setFormAluno({ ...formAluno, rua: e.target.value })} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20" />
+                        <input type="text" value={formAluno.rua} onChange={(e) => setFormAluno({ ...formAluno, rua: e.target.value })} className="w-full px-3 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 text-sm" />
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium text-surface-700 mb-1">Número</label>
-                        <input type="text" value={formAluno.numero} onChange={(e) => setFormAluno({ ...formAluno, numero: e.target.value })} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20" />
+                      <div className="col-span-1">
+                        <label className="block text-sm font-medium text-surface-700 mb-1">Nº</label>
+                        <input type="text" value={formAluno.numero} onChange={(e) => setFormAluno({ ...formAluno, numero: e.target.value })} className="w-full px-3 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 text-sm" />
                       </div>
                       <div className="col-span-2">
                         <label className="block text-sm font-medium text-surface-700 mb-1">Bairro</label>
-                        <input type="text" value={formAluno.bairro} onChange={(e) => setFormAluno({ ...formAluno, bairro: e.target.value })} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20" />
+                        <input type="text" value={formAluno.bairro} onChange={(e) => setFormAluno({ ...formAluno, bairro: e.target.value })} className="w-full px-3 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 text-sm" />
                       </div>
-                      <div>
+                      <div className="col-span-1">
                         <label className="block text-sm font-medium text-surface-700 mb-1">Cidade</label>
-                        <input type="text" value={formAluno.cidade} onChange={(e) => setFormAluno({ ...formAluno, cidade: e.target.value })} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20" />
+                        <input type="text" value={formAluno.cidade} onChange={(e) => setFormAluno({ ...formAluno, cidade: e.target.value })} className="w-full px-3 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 text-sm" />
                       </div>
-                      <div>
+                      <div className="col-span-1">
                         <label className="block text-sm font-medium text-surface-700 mb-1">UF</label>
-                        <select value={formAluno.estado} onChange={(e) => setFormAluno({ ...formAluno, estado: e.target.value })} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20">
+                        <select value={formAluno.estado} onChange={(e) => setFormAluno({ ...formAluno, estado: e.target.value })} className="w-full px-3 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 text-sm">
                           <option value="">UF</option>
                           {ESTADOS_BR.map(uf => <option key={uf} value={uf}>{uf}</option>)}
                         </select>
@@ -974,19 +1099,19 @@ function App() {
                     </div>
                   </div>
                   <div className="pt-4 border-t border-surface-100">
-                    <h4 className="font-medium text-surface-900 mb-4 flex items-center gap-2"><Users className="w-4 h-4" />Responsável</h4>
-                    <div className="grid grid-cols-3 gap-4">
+                    <h4 className="font-medium text-surface-900 mb-4 flex items-center gap-2 text-sm"><Users className="w-4 h-4" />Responsável</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                       <div>
                         <label className="block text-sm font-medium text-surface-700 mb-1">Nome</label>
-                        <input type="text" value={formAluno.responsavel_nome} onChange={(e) => setFormAluno({ ...formAluno, responsavel_nome: e.target.value })} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20" />
+                        <input type="text" value={formAluno.responsavel_nome} onChange={(e) => setFormAluno({ ...formAluno, responsavel_nome: e.target.value })} className="w-full px-3 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 text-sm" />
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-surface-700 mb-1">CPF</label>
-                        <input type="text" value={formAluno.responsavel_cpf} onChange={(e) => setFormAluno({ ...formAluno, responsavel_cpf: e.target.value })} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20" />
+                        <input type="text" value={formAluno.responsavel_cpf} onChange={(e) => setFormAluno({ ...formAluno, responsavel_cpf: e.target.value })} className="w-full px-3 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 text-sm" />
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-surface-700 mb-1">Telefone</label>
-                        <input type="text" value={formAluno.responsavel_telefone} onChange={(e) => setFormAluno({ ...formAluno, responsavel_telefone: e.target.value })} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20" />
+                        <input type="text" value={formAluno.responsavel_telefone} onChange={(e) => setFormAluno({ ...formAluno, responsavel_telefone: e.target.value })} className="w-full px-3 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 text-sm" />
                       </div>
                     </div>
                   </div>
@@ -994,14 +1119,14 @@ function App() {
               )}
               {alunoTab === 'pedagogico' && (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-surface-700 mb-1">Data de Início</label>
-                      <input type="date" value={formAluno.data_inicio} onChange={(e) => setFormAluno({ ...formAluno, data_inicio: e.target.value })} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20" />
+                      <input type="date" value={formAluno.data_inicio} onChange={(e) => setFormAluno({ ...formAluno, data_inicio: e.target.value })} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 text-sm" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-surface-700 mb-1">Status</label>
-                      <select value={formAluno.status_pedagogico} onChange={(e) => setFormAluno({ ...formAluno, status_pedagogico: e.target.value })} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20">
+                      <select value={formAluno.status_pedagogico} onChange={(e) => setFormAluno({ ...formAluno, status_pedagogico: e.target.value })} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 text-sm">
                         {STATUS_PEDAGOGICO.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
                       </select>
                     </div>
@@ -1009,63 +1134,56 @@ function App() {
                   <div className="pt-4 border-t border-surface-100">
                     <label className="block text-sm font-medium text-surface-700 mb-3">Usa Transporte?</label>
                     <div className="flex gap-4">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input type="radio" checked={formAluno.usa_transporte === true} onChange={() => setFormAluno({ ...formAluno, usa_transporte: true })} className="w-5 h-5 text-brand-600" /><span>Sim</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input type="radio" checked={formAluno.usa_transporte === false} onChange={() => setFormAluno({ ...formAluno, usa_transporte: false })} className="w-5 h-5 text-brand-600" /><span>Não</span>
-                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer"><input type="radio" checked={formAluno.usa_transporte === true} onChange={() => setFormAluno({ ...formAluno, usa_transporte: true })} className="w-5 h-5 text-brand-600" /><span className="text-sm">Sim</span></label>
+                      <label className="flex items-center gap-2 cursor-pointer"><input type="radio" checked={formAluno.usa_transporte === false} onChange={() => setFormAluno({ ...formAluno, usa_transporte: false })} className="w-5 h-5 text-brand-600" /><span className="text-sm">Não</span></label>
                     </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-surface-700 mb-1">Observações</label>
-                    <textarea value={formAluno.observacoes_pedagogicas} onChange={(e) => setFormAluno({ ...formAluno, observacoes_pedagogicas: e.target.value })} rows={4} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 resize-none" />
+                    <textarea value={formAluno.observacoes_pedagogicas} onChange={(e) => setFormAluno({ ...formAluno, observacoes_pedagogicas: e.target.value })} rows={4} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 resize-none text-sm" />
                   </div>
                 </div>
               )}
               {alunoTab === 'financeiro' && (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-surface-700 mb-1">Dia de Vencimento</label>
-                      <input type="number" min="1" max="31" value={formAluno.dia_vencimento} onChange={(e) => setFormAluno({ ...formAluno, dia_vencimento: e.target.value })} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20" />
+                      <input type="number" min="1" max="31" value={formAluno.dia_vencimento} onChange={(e) => setFormAluno({ ...formAluno, dia_vencimento: e.target.value })} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 text-sm" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-surface-700 mb-1">Valor Mensalidade</label>
-                      <input type="number" step="0.01" value={formAluno.valor_mensalidade} onChange={(e) => setFormAluno({ ...formAluno, valor_mensalidade: e.target.value })} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20" />
+                      <input type="number" step="0.01" value={formAluno.valor_mensalidade} onChange={(e) => setFormAluno({ ...formAluno, valor_mensalidade: e.target.value })} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 text-sm" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-surface-700 mb-1">Forma de Pagamento</label>
-                      <select value={formAluno.forma_pagamento} onChange={(e) => setFormAluno({ ...formAluno, forma_pagamento: e.target.value })} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20">
+                      <select value={formAluno.forma_pagamento} onChange={(e) => setFormAluno({ ...formAluno, forma_pagamento: e.target.value })} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 text-sm">
                         {FORMAS_PAGAMENTO.map(f => <option key={f} value={f}>{f}</option>)}
                       </select>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-surface-700 mb-1">Desconto (%)</label>
-                      <input type="number" min="0" max="100" value={formAluno.desconto} onChange={(e) => setFormAluno({ ...formAluno, desconto: e.target.value })} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20" />
+                      <input type="number" min="0" max="100" value={formAluno.desconto} onChange={(e) => setFormAluno({ ...formAluno, desconto: e.target.value })} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 text-sm" />
                     </div>
-                    <div className="col-span-2">
+                    <div className="sm:col-span-2">
                       <label className="block text-sm font-medium text-surface-700 mb-1">Status Financeiro</label>
-                      <select value={formAluno.status_financeiro} onChange={(e) => setFormAluno({ ...formAluno, status_financeiro: e.target.value })} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20">
+                      <select value={formAluno.status_financeiro} onChange={(e) => setFormAluno({ ...formAluno, status_financeiro: e.target.value })} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 text-sm">
                         {STATUS_FINANCEIRO.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
                       </select>
                     </div>
                   </div>
                   {formAluno.valor_mensalidade && (
                     <div className="p-4 bg-surface-50 rounded-xl">
-                      <h4 className="font-medium text-surface-900 mb-2">Resumo</h4>
+                      <h4 className="font-medium text-surface-900 mb-2 text-sm">Resumo</h4>
                       <div className="flex justify-between text-sm"><span className="text-surface-600">Mensalidade:</span><span className="font-medium">{formatCurrency(formAluno.valor_mensalidade)}</span></div>
-                      {formAluno.desconto > 0 && (<>
-                        <div className="flex justify-between text-sm"><span className="text-surface-600">Desconto ({formAluno.desconto}%):</span><span className="font-medium text-emerald-600">-{formatCurrency(formAluno.valor_mensalidade * (formAluno.desconto / 100))}</span></div>
-                        <div className="flex justify-between text-sm pt-2 border-t border-surface-200 mt-2"><span className="font-medium">Valor Final:</span><span className="font-bold">{formatCurrency(formAluno.valor_mensalidade * (1 - formAluno.desconto / 100))}</span></div>
-                      </>)}
+                      {formAluno.desconto > 0 && (<><div className="flex justify-between text-sm"><span className="text-surface-600">Desconto ({formAluno.desconto}%):</span><span className="font-medium text-emerald-600">-{formatCurrency(formAluno.valor_mensalidade * (formAluno.desconto / 100))}</span></div><div className="flex justify-between text-sm pt-2 border-t border-surface-200 mt-2"><span className="font-medium">Valor Final:</span><span className="font-bold">{formatCurrency(formAluno.valor_mensalidade * (1 - formAluno.desconto / 100))}</span></div></>)}
                     </div>
                   )}
                 </div>
               )}
               <div className="flex gap-3 pt-6 mt-6 border-t border-surface-100">
-                <button onClick={() => setModalAluno({ open: false, data: null })} className="flex-1 px-4 py-2.5 border border-surface-200 rounded-xl font-medium text-surface-700 hover:bg-surface-50">Cancelar</button>
-                <button onClick={saveAluno} className="flex-1 px-4 py-2.5 bg-accent-600 text-white rounded-xl font-medium hover:bg-accent-700">{modalAluno.data ? 'Salvar' : 'Cadastrar'}</button>
+                <button onClick={() => setModalAluno({ open: false, data: null })} className="flex-1 px-4 py-2.5 border border-surface-200 rounded-xl font-medium text-surface-700 hover:bg-surface-50 text-sm">Cancelar</button>
+                <button onClick={saveAluno} className="flex-1 px-4 py-2.5 bg-accent-600 text-white rounded-xl font-medium hover:bg-accent-700 text-sm">{modalAluno.data ? 'Salvar' : 'Cadastrar'}</button>
               </div>
             </div>
           </Modal>
@@ -1075,19 +1193,19 @@ function App() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-surface-700 mb-1">Nome *</label>
-                <input type="text" value={formProfessor.nome} onChange={(e) => setFormProfessor({ ...formProfessor, nome: e.target.value })} placeholder="Nome completo" className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20" />
+                <input type="text" value={formProfessor.nome} onChange={(e) => setFormProfessor({ ...formProfessor, nome: e.target.value })} placeholder="Nome completo" className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 text-sm" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-surface-700 mb-1">Email *</label>
-                <input type="email" value={formProfessor.email} onChange={(e) => setFormProfessor({ ...formProfessor, email: e.target.value })} placeholder="professor@escola.com" className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20" />
+                <input type="email" value={formProfessor.email} onChange={(e) => setFormProfessor({ ...formProfessor, email: e.target.value })} placeholder="professor@escola.com" className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 text-sm" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-surface-700 mb-1">{modalProfessor.data ? 'Nova Senha (deixe em branco para manter)' : 'Senha *'}</label>
-                <input type="password" value={formProfessor.senha} onChange={(e) => setFormProfessor({ ...formProfessor, senha: e.target.value })} placeholder="••••••••" className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20" />
+                <input type="password" value={formProfessor.senha} onChange={(e) => setFormProfessor({ ...formProfessor, senha: e.target.value })} placeholder="••••••••" className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 text-sm" />
               </div>
               <div className="flex gap-3 pt-4">
-                <button onClick={() => setModalProfessor({ open: false, data: null })} className="flex-1 px-4 py-2.5 border border-surface-200 rounded-xl font-medium text-surface-700 hover:bg-surface-50">Cancelar</button>
-                <button onClick={saveProfessor} disabled={!formProfessor.nome || !formProfessor.email || (!modalProfessor.data && !formProfessor.senha)} className="flex-1 px-4 py-2.5 bg-purple-600 text-white rounded-xl font-medium hover:bg-purple-700 disabled:opacity-50">{modalProfessor.data ? 'Salvar' : 'Cadastrar'}</button>
+                <button onClick={() => setModalProfessor({ open: false, data: null })} className="flex-1 px-4 py-2.5 border border-surface-200 rounded-xl font-medium text-surface-700 hover:bg-surface-50 text-sm">Cancelar</button>
+                <button onClick={saveProfessor} disabled={!formProfessor.nome || !formProfessor.email || (!modalProfessor.data && !formProfessor.senha)} className="flex-1 px-4 py-2.5 bg-purple-600 text-white rounded-xl font-medium hover:bg-purple-700 disabled:opacity-50 text-sm">{modalProfessor.data ? 'Salvar' : 'Cadastrar'}</button>
               </div>
             </div>
           </Modal>
@@ -1096,43 +1214,43 @@ function App() {
           <Modal isOpen={modalAula.open} onClose={() => setModalAula({ open: false, turma: null, data: null })} title={modalAula.data ? 'Editar Aula' : 'Registrar Aula'} size="lg">
             {modalAula.turma && (
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-surface-700 mb-1">Data *</label>
-                    <input type="date" value={formAula.data} onChange={(e) => setFormAula({ ...formAula, data: e.target.value })} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20" />
+                    <input type="date" value={formAula.data} onChange={(e) => setFormAula({ ...formAula, data: e.target.value })} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 text-sm" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-surface-700 mb-1">Unidade/Lição</label>
-                    <input type="text" value={formAula.unidade_livro} onChange={(e) => setFormAula({ ...formAula, unidade_livro: e.target.value })} placeholder="Ex: Unit 3 - Lesson 2" className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20" />
+                    <input type="text" value={formAula.unidade_livro} onChange={(e) => setFormAula({ ...formAula, unidade_livro: e.target.value })} placeholder="Ex: Unit 3 - Lesson 2" className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 text-sm" />
                   </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-surface-700 mb-1">Conteúdo</label>
-                  <textarea value={formAula.conteudo} onChange={(e) => setFormAula({ ...formAula, conteudo: e.target.value })} placeholder="O que foi trabalhado..." rows={2} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 resize-none" />
+                  <textarea value={formAula.conteudo} onChange={(e) => setFormAula({ ...formAula, conteudo: e.target.value })} placeholder="O que foi trabalhado..." rows={2} className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 resize-none text-sm" />
                 </div>
                 <div className="pt-4 border-t border-surface-100">
-                  <h4 className="font-medium text-surface-900 mb-3 flex items-center gap-2"><ClipboardList className="w-4 h-4" />Lista de Presença</h4>
+                  <h4 className="font-medium text-surface-900 mb-3 flex items-center gap-2 text-sm"><ClipboardList className="w-4 h-4" />Lista de Presença</h4>
                   <div className="space-y-2 max-h-64 overflow-y-auto">
                     {modalAula.turma.matriculas?.map(m => {
                       const aluno = m.alunos
                       if (!aluno) return null
                       const presenca = formAula.presencas[aluno.id] || { presente: true, observacao: '' }
                       return (
-                        <div key={aluno.id} className="flex items-center gap-3 p-3 bg-surface-50 rounded-xl">
-                          <button onClick={() => setFormAula({ ...formAula, presencas: { ...formAula.presencas, [aluno.id]: { ...presenca, presente: !presenca.presente } } })} className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${presenca.presente ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
-                            {presenca.presente ? <UserCheck className="w-5 h-5" /> : <UserX className="w-5 h-5" />}
+                        <div key={aluno.id} className="flex items-center gap-2 sm:gap-3 p-2 sm:p-3 bg-surface-50 rounded-xl">
+                          <button onClick={() => setFormAula({ ...formAula, presencas: { ...formAula.presencas, [aluno.id]: { ...presenca, presente: !presenca.presente } } })} className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center transition-colors flex-shrink-0 ${presenca.presente ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
+                            {presenca.presente ? <UserCheck className="w-4 h-4 sm:w-5 sm:h-5" /> : <UserX className="w-4 h-4 sm:w-5 sm:h-5" />}
                           </button>
-                          <div className="flex-1"><p className="font-medium text-surface-900">{aluno.nome || 'Sem nome'}</p></div>
-                          <input type="text" value={presenca.observacao} onChange={(e) => setFormAula({ ...formAula, presencas: { ...formAula.presencas, [aluno.id]: { ...presenca, observacao: e.target.value } } })} placeholder="Obs..." className="w-40 px-3 py-1.5 text-sm border border-surface-200 rounded-lg focus:border-brand-500" />
+                          <div className="flex-1 min-w-0"><p className="font-medium text-surface-900 text-sm truncate">{aluno.nome || 'Sem nome'}</p></div>
+                          <input type="text" value={presenca.observacao} onChange={(e) => setFormAula({ ...formAula, presencas: { ...formAula.presencas, [aluno.id]: { ...presenca, observacao: e.target.value } } })} placeholder="Obs..." className="w-20 sm:w-32 px-2 sm:px-3 py-1.5 text-xs sm:text-sm border border-surface-200 rounded-lg focus:border-brand-500" />
                         </div>
                       )
                     })}
-                    {(!modalAula.turma.matriculas || modalAula.turma.matriculas.length === 0) && <div className="text-center py-4 text-surface-500">Nenhum aluno matriculado</div>}
+                    {(!modalAula.turma.matriculas || modalAula.turma.matriculas.length === 0) && <div className="text-center py-4 text-surface-500 text-sm">Nenhum aluno matriculado</div>}
                   </div>
                 </div>
                 <div className="flex gap-3 pt-4">
-                  <button onClick={() => setModalAula({ open: false, turma: null, data: null })} className="flex-1 px-4 py-2.5 border border-surface-200 rounded-xl font-medium text-surface-700 hover:bg-surface-50">Cancelar</button>
-                  <button onClick={saveAula} disabled={!formAula.data} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 disabled:opacity-50"><Save className="w-4 h-4" />{modalAula.data ? 'Salvar' : 'Registrar'}</button>
+                  <button onClick={() => setModalAula({ open: false, turma: null, data: null })} className="flex-1 px-4 py-2.5 border border-surface-200 rounded-xl font-medium text-surface-700 hover:bg-surface-50 text-sm">Cancelar</button>
+                  <button onClick={saveAula} disabled={!formAula.data} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 disabled:opacity-50 text-sm"><Save className="w-4 h-4" />{modalAula.data ? 'Salvar' : 'Registrar'}</button>
                 </div>
               </div>
             )}
@@ -1141,18 +1259,18 @@ function App() {
           {/* Modal Matrícula */}
           <Modal isOpen={modalMatricula.open} onClose={() => setModalMatricula({ open: false, turmaId: null })} title="Matricular Aluno">
             <div className="space-y-4">
-              <p className="text-surface-600">Selecione um aluno:</p>
+              <p className="text-surface-600 text-sm">Selecione um aluno:</p>
               <div className="max-h-64 overflow-y-auto space-y-2">
                 {alunosDisponiveis.map(aluno => (
-                  <button key={aluno.id} onClick={() => matricularAluno(aluno.id)} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-surface-200 hover:border-brand-300 hover:bg-brand-50 text-left">
-                    <div className="w-10 h-10 bg-gradient-to-br from-brand-400 to-accent-400 rounded-full flex items-center justify-center text-white font-semibold text-sm">{(aluno.nome || '?').charAt(0).toUpperCase()}</div>
-                    <div>
-                      <p className="font-medium text-surface-900">{aluno.nome || 'Sem nome'}</p>
-                      <p className="text-sm text-surface-500">{aluno.email || 'Sem email'}</p>
+                  <button key={aluno.id} onClick={() => matricularAluno(aluno.id)} className="w-full flex items-center gap-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border border-surface-200 hover:border-brand-300 hover:bg-brand-50 text-left">
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 bg-gradient-to-br from-brand-400 to-accent-400 rounded-full flex items-center justify-center text-white font-semibold text-xs sm:text-sm flex-shrink-0">{(aluno.nome || '?').charAt(0).toUpperCase()}</div>
+                    <div className="min-w-0">
+                      <p className="font-medium text-surface-900 text-sm truncate">{aluno.nome || 'Sem nome'}</p>
+                      <p className="text-xs text-surface-500 truncate">{aluno.email || 'Sem email'}</p>
                     </div>
                   </button>
                 ))}
-                {alunosDisponiveis.length === 0 && <div className="text-center py-8 text-surface-500"><Users className="w-10 h-10 mx-auto mb-2 text-surface-300" /><p>Todos já matriculados</p></div>}
+                {alunosDisponiveis.length === 0 && <div className="text-center py-8 text-surface-500"><Users className="w-10 h-10 mx-auto mb-2 text-surface-300" /><p className="text-sm">Todos já matriculados</p></div>}
               </div>
             </div>
           </Modal>
@@ -1170,18 +1288,18 @@ function App() {
                   </div>
                 </div>
                 <div>
-                  <h4 className="font-medium text-surface-900 mb-3">Alunos ({modalDetalheTurma.turma.matriculas?.length || 0})</h4>
+                  <h4 className="font-medium text-surface-900 mb-3 text-sm">Alunos ({modalDetalheTurma.turma.matriculas?.length || 0})</h4>
                   <div className="max-h-64 overflow-y-auto space-y-2">
                     {modalDetalheTurma.turma.matriculas?.map(m => (
-                      <div key={m.id} className="flex items-center justify-between px-4 py-3 bg-surface-50 rounded-xl">
+                      <div key={m.id} className="flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3 bg-surface-50 rounded-xl">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 bg-gradient-to-br from-brand-400 to-accent-400 rounded-full flex items-center justify-center text-white font-semibold text-sm">{(m.alunos?.nome || '?').charAt(0).toUpperCase()}</div>
-                          <span className="font-medium text-surface-900">{m.alunos?.nome || 'Sem nome'}</span>
+                          <span className="font-medium text-surface-900 text-sm">{m.alunos?.nome || 'Sem nome'}</span>
                         </div>
                         <button onClick={() => cancelarMatricula(modalDetalheTurma.turma.id, m.aluno_id)} className="text-red-500 hover:text-red-600 text-sm">Remover</button>
                       </div>
                     ))}
-                    {!modalDetalheTurma.turma.matriculas?.length && <div className="text-center py-6 text-surface-500">Nenhum aluno</div>}
+                    {!modalDetalheTurma.turma.matriculas?.length && <div className="text-center py-6 text-surface-500 text-sm">Nenhum aluno</div>}
                   </div>
                 </div>
               </div>
@@ -1193,16 +1311,16 @@ function App() {
             {modalDetalheAluno.aluno && (
               <div className="space-y-6">
                 <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 bg-gradient-to-br from-brand-400 to-accent-400 rounded-full flex items-center justify-center text-white text-2xl font-bold">{(modalDetalheAluno.aluno.nome || '?').charAt(0).toUpperCase()}</div>
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-br from-brand-400 to-accent-400 rounded-full flex items-center justify-center text-white text-xl sm:text-2xl font-bold">{(modalDetalheAluno.aluno.nome || '?').charAt(0).toUpperCase()}</div>
                   <div>
-                    <h3 className="text-xl font-semibold text-surface-900">{modalDetalheAluno.aluno.nome || 'Sem nome'}</h3>
-                    <div className="flex gap-2 mt-1">
-                      <span className={`badge ${STATUS_COLORS[modalDetalheAluno.aluno.status_pedagogico]}`}>{STATUS_LABELS[modalDetalheAluno.aluno.status_pedagogico]}</span>
-                      <span className={`badge ${STATUS_COLORS[modalDetalheAluno.aluno.status_financeiro]}`}>{STATUS_LABELS[modalDetalheAluno.aluno.status_financeiro]}</span>
+                    <h3 className="text-lg sm:text-xl font-semibold text-surface-900">{modalDetalheAluno.aluno.nome || 'Sem nome'}</h3>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      <span className={`badge text-xs ${STATUS_COLORS[modalDetalheAluno.aluno.status_pedagogico]}`}>{STATUS_LABELS[modalDetalheAluno.aluno.status_pedagogico]}</span>
+                      <span className={`badge text-xs ${STATUS_COLORS[modalDetalheAluno.aluno.status_financeiro]}`}>{STATUS_LABELS[modalDetalheAluno.aluno.status_financeiro]}</span>
                     </div>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                   <div className="space-y-3">
                     <h4 className="font-medium text-surface-900 flex items-center gap-2"><User className="w-4 h-4" />Dados Pessoais</h4>
                     <div className="space-y-2 text-surface-600">
@@ -1225,7 +1343,7 @@ function App() {
                 </div>
                 {modalDetalheAluno.aluno.matriculas?.length > 0 && (
                   <div className="pt-4 border-t border-surface-100">
-                    <h4 className="font-medium text-surface-900 mb-3 flex items-center gap-2"><BookOpen className="w-4 h-4" />Turmas</h4>
+                    <h4 className="font-medium text-surface-900 mb-3 flex items-center gap-2 text-sm"><BookOpen className="w-4 h-4" />Turmas</h4>
                     <div className="flex flex-wrap gap-2">
                       {modalDetalheAluno.aluno.matriculas.map(m => <div key={m.id} className={`badge ${IDIOMA_COLORS[m.turmas?.idioma] || 'bg-surface-100 text-surface-600'}`}>{m.turmas?.nome}</div>)}
                     </div>
@@ -1234,12 +1352,12 @@ function App() {
                 <div className="pt-4 border-t border-surface-100">
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-surface-500">Usa Transporte:</span>
-                    <span className={`badge ${modalDetalheAluno.aluno.usa_transporte ? 'bg-emerald-100 text-emerald-700' : 'bg-surface-100 text-surface-600'}`}>{modalDetalheAluno.aluno.usa_transporte ? 'Sim' : 'Não'}</span>
+                    <span className={`badge text-xs ${modalDetalheAluno.aluno.usa_transporte ? 'bg-emerald-100 text-emerald-700' : 'bg-surface-100 text-surface-600'}`}>{modalDetalheAluno.aluno.usa_transporte ? 'Sim' : 'Não'}</span>
                   </div>
                 </div>
                 {modalDetalheAluno.aluno.responsavel_nome && (
                   <div className="pt-4 border-t border-surface-100">
-                    <h4 className="font-medium text-surface-900 mb-3 flex items-center gap-2"><Users className="w-4 h-4" />Responsável</h4>
+                    <h4 className="font-medium text-surface-900 mb-3 flex items-center gap-2 text-sm"><Users className="w-4 h-4" />Responsável</h4>
                     <div className="text-sm text-surface-600 space-y-1">
                       <p><span className="text-surface-500">Nome:</span> {modalDetalheAluno.aluno.responsavel_nome}</p>
                       {modalDetalheAluno.aluno.responsavel_telefone && <p><span className="text-surface-500">Tel:</span> {modalDetalheAluno.aluno.responsavel_telefone}</p>}
@@ -1248,7 +1366,7 @@ function App() {
                 )}
                 {modalDetalheAluno.aluno.observacoes_pedagogicas && (
                   <div className="pt-4 border-t border-surface-100">
-                    <h4 className="font-medium text-surface-900 mb-2 flex items-center gap-2"><FileText className="w-4 h-4" />Observações</h4>
+                    <h4 className="font-medium text-surface-900 mb-2 flex items-center gap-2 text-sm"><FileText className="w-4 h-4" />Observações</h4>
                     <p className="text-sm text-surface-600 bg-surface-50 p-3 rounded-lg">{modalDetalheAluno.aluno.observacoes_pedagogicas}</p>
                   </div>
                 )}
@@ -1256,37 +1374,34 @@ function App() {
             )}
           </Modal>
 
-          {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-
           {/* Modal Alterar Senha */}
           <Modal isOpen={modalSenha} onClose={() => { setModalSenha(false); setFormSenha({ atual: '', nova: '', confirmar: '' }) }} title="Alterar Senha">
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-surface-700 mb-1">Senha Atual *</label>
-                <input type="password" value={formSenha.atual} onChange={(e) => setFormSenha({ ...formSenha, atual: e.target.value })} placeholder="••••••••" className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20" />
+                <input type="password" value={formSenha.atual} onChange={(e) => setFormSenha({ ...formSenha, atual: e.target.value })} placeholder="••••••••" className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 text-sm" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-surface-700 mb-1">Nova Senha *</label>
-                <input type="password" value={formSenha.nova} onChange={(e) => setFormSenha({ ...formSenha, nova: e.target.value })} placeholder="••••••••" className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20" />
+                <input type="password" value={formSenha.nova} onChange={(e) => setFormSenha({ ...formSenha, nova: e.target.value })} placeholder="••••••••" className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 text-sm" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-surface-700 mb-1">Confirmar Nova Senha *</label>
-                <input type="password" value={formSenha.confirmar} onChange={(e) => setFormSenha({ ...formSenha, confirmar: e.target.value })} placeholder="••••••••" className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20" />
+                <input type="password" value={formSenha.confirmar} onChange={(e) => setFormSenha({ ...formSenha, confirmar: e.target.value })} placeholder="••••••••" className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 text-sm" />
               </div>
               {formSenha.nova && formSenha.confirmar && formSenha.nova !== formSenha.confirmar && (
-                <div className="flex items-center gap-2 text-red-600 text-sm">
-                  <AlertCircle className="w-4 h-4" />As senhas não coincidem
-                </div>
+                <div className="flex items-center gap-2 text-red-600 text-sm"><AlertCircle className="w-4 h-4" />As senhas não coincidem</div>
               )}
               <div className="flex gap-3 pt-4">
-                <button onClick={() => { setModalSenha(false); setFormSenha({ atual: '', nova: '', confirmar: '' }) }} className="flex-1 px-4 py-2.5 border border-surface-200 rounded-xl font-medium text-surface-700 hover:bg-surface-50">Cancelar</button>
-                <button onClick={alterarSenha} disabled={!formSenha.atual || !formSenha.nova || !formSenha.confirmar || formSenha.nova !== formSenha.confirmar || senhaLoading} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 disabled:opacity-50">
-                  {senhaLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
-                  Alterar
+                <button onClick={() => { setModalSenha(false); setFormSenha({ atual: '', nova: '', confirmar: '' }) }} className="flex-1 px-4 py-2.5 border border-surface-200 rounded-xl font-medium text-surface-700 hover:bg-surface-50 text-sm">Cancelar</button>
+                <button onClick={alterarSenha} disabled={!formSenha.atual || !formSenha.nova || !formSenha.confirmar || formSenha.nova !== formSenha.confirmar || senhaLoading} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 disabled:opacity-50 text-sm">
+                  {senhaLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}Alterar
                 </button>
               </div>
             </div>
           </Modal>
+
+          {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
         </div>
       )}
     </>
