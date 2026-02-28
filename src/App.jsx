@@ -4,13 +4,50 @@ import {
   Users, BookOpen, Plus, Search, Edit2, Trash2, X, UserPlus, GraduationCap, Clock, Globe2,
   ChevronRight, AlertCircle, Check, Loader2, LayoutDashboard, User, DollarSign, MapPin,
   FileText, Eye, BookMarked, LogIn, LogOut, Lock, UserCheck, UserX, ClipboardList, Save, Mail, Menu,
-  Bot, Send, Sparkles
+  Bot, Send, Sparkles, Moon, Sun
 } from 'lucide-react'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'SUA_URL_SUPABASE'
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'SUA_CHAVE_ANON'
 const API_URL = import.meta.env.VITE_ASSISTANT_API_URL || 'http://localhost:8000'
 const supabase = createClient(supabaseUrl, supabaseKey)
+
+// ========================================
+// THEME TOGGLE COMPONENT
+// ========================================
+function ThemeToggle() {
+  const [dark, setDark] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('theme') === 'dark' || 
+        (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)
+    }
+    return false
+  })
+
+  useEffect(() => {
+    if (dark) {
+      document.documentElement.classList.add('dark')
+      localStorage.setItem('theme', 'dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+      localStorage.setItem('theme', 'light')
+    }
+  }, [dark])
+
+  return (
+    <button
+      onClick={() => setDark(!dark)}
+      className="p-2 rounded-xl glass-button hover:scale-105 transition-all"
+      title={dark ? 'Modo Claro' : 'Modo Escuro'}
+    >
+      {dark ? (
+        <Sun className="w-5 h-5 text-amber-400" />
+      ) : (
+        <Moon className="w-5 h-5 text-surface-600 dark:text-surface-400" />
+      )}
+    </button>
+  )
+}
 
 
 function LoginScreen({ onLogin }) {
@@ -48,7 +85,7 @@ function LoginScreen({ onLogin }) {
           <h1 className="text-3xl font-display font-bold text-surface-900">EduLingua</h1>
           <p className="text-surface-500 mt-1">Gestão de Turmas</p>
         </div>
-        <form onSubmit={handleLogin} className="bg-white rounded-2xl shadow-card p-6 sm:p-8 space-y-5">
+        <form onSubmit={handleLogin} className="glass rounded-2xl shadow-card p-6 sm:p-8 space-y-5">
           <div>
             <label className="block text-sm font-medium text-surface-700 mb-1">Email</label>
             <div className="relative">
@@ -98,7 +135,7 @@ function Modal({ isOpen, onClose, title, children, size = 'md' }) {
   const sizeClasses = { sm: 'max-w-md', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-4xl' }
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 modal-backdrop" onClick={onClose}>
-      <div className={`bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full ${sizeClasses[size]} animate-scale-in overflow-hidden max-h-[90vh] flex flex-col`} onClick={e => e.stopPropagation()}>
+      <div className={`glass-modal rounded-t-2xl sm:rounded-2xl shadow-2xl w-full ${sizeClasses[size]} animate-scale-in overflow-hidden max-h-[90vh] flex flex-col`} onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-surface-100 shrink-0">
           <h3 className="text-lg sm:text-xl font-semibold text-surface-900 font-display">{title}</h3>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-surface-100 text-surface-500 transition-colors"><X className="w-5 h-5" /></button>
@@ -198,7 +235,7 @@ function AssistenteIA() {
         </button>
       </div>
 
-      <div className="flex-1 bg-white rounded-xl sm:rounded-2xl shadow-card overflow-hidden flex flex-col">
+      <div className="flex-1 glass rounded-xl sm:rounded-2xl shadow-card overflow-hidden flex flex-col">
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
           {messages.map((msg, idx) => (
             <div key={idx} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
@@ -593,7 +630,7 @@ function App() {
       ) : (
         <div className="min-h-screen">
           {/* Mobile Header */}
-          <header className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white border-b border-surface-200 z-40 flex items-center justify-between px-4">
+          <header className="lg:hidden fixed top-0 left-0 right-0 h-16 glass border-b border-surface-200/50 z-40 flex items-center justify-between px-4">
             <div className="flex items-center gap-3">
               <button onClick={() => setSidebarOpen(true)} className="p-2 -ml-2 rounded-lg hover:bg-surface-100">
                 <Menu className="w-6 h-6 text-surface-600" />
@@ -605,15 +642,18 @@ function App() {
                 <span className="font-display font-bold text-surface-900">EduLingua</span>
               </div>
             </div>
-            <div className="w-8 h-8 bg-surface-100 rounded-full flex items-center justify-center">
-              <User className="w-4 h-4 text-surface-600" />
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              <div className="w-8 h-8 bg-surface-100 rounded-full flex items-center justify-center">
+                <User className="w-4 h-4 text-surface-600" />
+              </div>
             </div>
           </header>
 
           {/* Mobile Sidebar Overlay */}
           {sidebarOpen && (
             <div className="lg:hidden fixed inset-0 z-50 bg-black/50" onClick={() => setSidebarOpen(false)}>
-              <aside className="w-72 h-full bg-white shadow-xl" onClick={e => e.stopPropagation()}>
+              <aside className="w-72 h-full glass-sidebar shadow-xl" onClick={e => e.stopPropagation()}>
                 <div className="p-4 border-b border-surface-100 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-gradient-to-br from-brand-500 to-accent-500 rounded-xl flex items-center justify-center">
@@ -657,16 +697,19 @@ function App() {
           )}
 
           {/* Desktop Sidebar */}
-          <aside className="hidden lg:block fixed left-0 top-0 h-full w-64 bg-white border-r border-surface-200 shadow-soft z-40">
+          <aside className="hidden lg:block fixed left-0 top-0 h-full w-64 glass-sidebar shadow-soft z-40">
             <div className="p-6">
-              <div className="flex items-center gap-3 mb-8">
-                <div className="w-10 h-10 bg-gradient-to-br from-brand-500 to-accent-500 rounded-xl flex items-center justify-center">
-                  <Globe2 className="w-6 h-6 text-white" />
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-br from-brand-500 to-accent-500 rounded-xl flex items-center justify-center">
+                    <Globe2 className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h1 className="font-display font-bold text-surface-900">EduLingua</h1>
+                    <p className="text-xs text-surface-500">{usuario?.perfil === 'professor' ? 'Área do Professor' : 'Gestão de Turmas'}</p>
+                  </div>
                 </div>
-                <div>
-                  <h1 className="font-display font-bold text-surface-900">EduLingua</h1>
-                  <p className="text-xs text-surface-500">{usuario?.perfil === 'professor' ? 'Área do Professor' : 'Gestão de Turmas'}</p>
-                </div>
+                <ThemeToggle />
               </div>
               <nav className="space-y-1">
                 {menuItems.map(item => (
@@ -708,14 +751,14 @@ function App() {
                         <p className="text-surface-600 text-sm sm:text-base">Visão geral da escola</p>
                       </div>
                       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-6 sm:mb-8">
-                        <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-card">
+                        <div className="glass rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-card">
                           <div className="flex items-center justify-between mb-3 sm:mb-4">
                             <div className="w-10 h-10 sm:w-12 sm:h-12 bg-brand-100 rounded-lg sm:rounded-xl flex items-center justify-center"><BookOpen className="w-5 h-5 sm:w-6 sm:h-6 text-brand-600" /></div>
                             <span className="text-2xl sm:text-3xl font-display font-bold text-surface-900">{stats.totalTurmas}</span>
                           </div>
                           <h3 className="font-medium text-surface-900 text-sm sm:text-base">Turmas</h3>
                         </div>
-                        <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-card">
+                        <div className="glass rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-card">
                           <div className="flex items-center justify-between mb-3 sm:mb-4">
                             <div className="w-10 h-10 sm:w-12 sm:h-12 bg-accent-100 rounded-lg sm:rounded-xl flex items-center justify-center"><Users className="w-5 h-5 sm:w-6 sm:h-6 text-accent-600" /></div>
                             <span className="text-2xl sm:text-3xl font-display font-bold text-surface-900">{stats.totalAlunos}</span>
@@ -723,14 +766,14 @@ function App() {
                           <h3 className="font-medium text-surface-900 text-sm sm:text-base">Alunos</h3>
                           <p className="text-xs sm:text-sm text-surface-500">{stats.alunosAtivos} ativos</p>
                         </div>
-                        <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-card">
+                        <div className="glass rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-card">
                           <div className="flex items-center justify-between mb-3 sm:mb-4">
                             <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-100 rounded-lg sm:rounded-xl flex items-center justify-center"><GraduationCap className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600" /></div>
                             <span className="text-2xl sm:text-3xl font-display font-bold text-surface-900">{stats.totalProfessores}</span>
                           </div>
                           <h3 className="font-medium text-surface-900 text-sm sm:text-base">Professores</h3>
                         </div>
-                        <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-card">
+                        <div className="glass rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-card">
                           <div className="flex items-center justify-between mb-3 sm:mb-4">
                             <div className="w-10 h-10 sm:w-12 sm:h-12 bg-amber-100 rounded-lg sm:rounded-xl flex items-center justify-center"><AlertCircle className="w-5 h-5 sm:w-6 sm:h-6 text-amber-600" /></div>
                             <span className="text-2xl sm:text-3xl font-display font-bold text-surface-900">{stats.alunosPendentes}</span>
@@ -739,7 +782,7 @@ function App() {
                         </div>
                       </div>
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-                        <div className="bg-white rounded-xl sm:rounded-2xl shadow-card overflow-hidden">
+                        <div className="glass rounded-xl sm:rounded-2xl shadow-card overflow-hidden">
                           <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-surface-100 flex items-center justify-between">
                             <h3 className="font-display font-semibold text-surface-900 text-sm sm:text-base">Turmas Recentes</h3>
                             <button onClick={() => setActiveTab('turmas')} className="text-xs sm:text-sm text-brand-600 hover:text-brand-700 font-medium flex items-center gap-1">Ver todas <ChevronRight className="w-4 h-4" /></button>
@@ -760,7 +803,7 @@ function App() {
                             {turmas.length === 0 && <div className="px-4 sm:px-6 py-6 sm:py-8 text-center text-surface-500 text-sm">Nenhuma turma</div>}
                           </div>
                         </div>
-                        <div className="bg-white rounded-xl sm:rounded-2xl shadow-card overflow-hidden">
+                        <div className="glass rounded-xl sm:rounded-2xl shadow-card overflow-hidden">
                           <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-surface-100 flex items-center justify-between">
                             <h3 className="font-display font-semibold text-surface-900 text-sm sm:text-base">Alunos com Pendências</h3>
                             <button onClick={() => setActiveTab('alunos')} className="text-xs sm:text-sm text-brand-600 hover:text-brand-700 font-medium flex items-center gap-1">Ver todos <ChevronRight className="w-4 h-4" /></button>
@@ -796,7 +839,7 @@ function App() {
                           <Plus className="w-5 h-5" />Nova Turma
                         </button>
                       </div>
-                      <div className="bg-white rounded-xl sm:rounded-2xl shadow-card overflow-hidden">
+                      <div className="glass rounded-xl sm:rounded-2xl shadow-card overflow-hidden">
                         <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-surface-100">
                           <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400" />
@@ -871,7 +914,7 @@ function App() {
                           <Plus className="w-5 h-5" />Novo Aluno
                         </button>
                       </div>
-                      <div className="bg-white rounded-xl sm:rounded-2xl shadow-card overflow-hidden">
+                      <div className="glass rounded-xl sm:rounded-2xl shadow-card overflow-hidden">
                         <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-surface-100">
                           <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400" />
@@ -949,7 +992,7 @@ function App() {
                           <Plus className="w-5 h-5" />Novo Professor
                         </button>
                       </div>
-                      <div className="bg-white rounded-xl sm:rounded-2xl shadow-card overflow-hidden">
+                      <div className="glass rounded-xl sm:rounded-2xl shadow-card overflow-hidden">
                         <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-surface-100">
                           <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400" />
@@ -1029,7 +1072,7 @@ function App() {
                         </select>
                       </div>
                       {diarioTurmaId && turmaSelecionada && (
-                        <div className="bg-white rounded-xl sm:rounded-2xl shadow-card overflow-hidden">
+                        <div className="glass rounded-xl sm:rounded-2xl shadow-card overflow-hidden">
                           <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-surface-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                             <div>
                               <h3 className="font-display font-semibold text-surface-900">{turmaSelecionada.nome}</h3>
