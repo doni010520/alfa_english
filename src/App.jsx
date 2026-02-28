@@ -3,12 +3,15 @@ import { createClient } from '@supabase/supabase-js'
 import { 
   Users, BookOpen, Plus, Search, Edit2, Trash2, X, UserPlus, GraduationCap, Clock, Globe2,
   ChevronRight, AlertCircle, Check, Loader2, LayoutDashboard, User, DollarSign, MapPin,
-  FileText, Eye, BookMarked, LogIn, LogOut, Lock, UserCheck, UserX, ClipboardList, Save, Mail, Menu
+  FileText, Eye, BookMarked, LogIn, LogOut, Lock, UserCheck, UserX, ClipboardList, Save, Mail, Menu,
+  Bot, Send, Sparkles
 } from 'lucide-react'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'SUA_URL_SUPABASE'
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'SUA_CHAVE_ANON'
+const API_URL = import.meta.env.VITE_ASSISTANT_API_URL || 'http://localhost:8000'
 const supabase = createClient(supabaseUrl, supabaseKey)
+
 
 function LoginScreen({ onLogin }) {
   const [email, setEmail] = useState('')
@@ -452,7 +455,7 @@ function App() {
 
   function formatCurrency(value) { if (!value) return '-'; return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value) }
 
-  const menuItems = usuario?.perfil === 'professor' 
+ const menuItems = usuario?.perfil === 'professor' 
     ? [{ id: 'diario', icon: ClipboardList, label: 'Diário de Classe' }]
     : [
         { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -460,6 +463,7 @@ function App() {
         { id: 'alunos', icon: Users, label: 'Alunos' },
         { id: 'professores', icon: GraduationCap, label: 'Professores' },
         { id: 'diario', icon: ClipboardList, label: 'Diário de Classe' },
+        { id: 'assistente', icon: Bot, label: 'Assistente IA' },
       ]
 
   return (
