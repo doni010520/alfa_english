@@ -127,6 +127,124 @@ const emptyFormAluno = {
   dia_vencimento: '', valor_mensalidade: '', forma_pagamento: 'PIX', desconto: '', status_financeiro: 'em_dia',
 }
 
+function AssistenteIA() {
+  const [messages, setMessages] = useState([
+    {
+      role: 'assistant',
+      content: 'Olá! 👋 Sou o assistente virtual da EduLingua. Posso ajudar você a consultar informações sobre turmas, alunos, professores, presenças e finanças.\n\nExemplos de perguntas:\n• Quais turmas existem?\n• Quem são os alunos da turma de Inglês Básico?\n• Quem está inadimplente?\n• Quem faltou essa semana?\n• Quais são as estatísticas da escola?'
+    }
+  ])
+  const [inputMsg, setInputMsg] = useState('')
+  const [isLoadingChat, setIsLoadingChat] = useState(false)
+  const [chatError, setChatError] = useState(null)
+  const messagesEndRef = useRef(null)
+  const inputRef = useRef(null)
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  async function handleSendMessage(e) {
+    e.preventDefault()
+    if (!inputMsg.trim() || isLoadingChat) return
+
+    const userMessage = inputMsg.trim()
+    setInputMsg('')
+    setChatError(null)
+    setMessages(prev => [...prev, { role: 'user', content: userMessage }])
+    setIsLoadingChat(true)
+
+    try {
+      const history = messages.slice(1).map(m => ({ role: m.role, content: m.content }))
+      const response = await fetch(`${API_URL}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: userMessage, history: history.slice(-10) })
+      })
+
+      if (!response.ok) throw new Error(`Erro ${response.status}`)
+      const data = await response.json()
+      setMessages(prev => [...prev, { role: 'assistant', content: data.response }])
+    } catch (err) {
+      setChatError(err.message)
+      setMessages(prev => [...prev, { role: 'assistant', content: '❌ Erro ao processar. Tente novamente.' }])
+    } finally {
+      setIsLoadingChat(false)
+    }
+  }
+
+  function formatMessage(content) {
+    return content.split('\n').map((line, i) => {
+      if (line.startsWith('• ') || line.startsWith('- ')) return <li key={i} className="ml-4">{line.substring(2)}</li>
+      if (!line.trim()) return <br key={i} />
+      return <p key={i}>{line}</p>
+    })
+  }
+
+  return (
+    <div className="animate-fade-in h-[calc(100vh-8rem)] sm:h-[calc(100vh-10rem)] flex flex-col">
+      <div className="mb-4 sm:mb-6 flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl sm:text-3xl font-display font-bold text-surface-900 mb-1 flex items-center gap-3">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl flex items-center justify-center">
+              <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+            </div>
+            Assistente IA
+          </h2>
+          <p className="text-surface-600 text-sm sm:text-base">Consulte informações da escola em linguagem natural</p>
+        </div>
+        <button onClick={() => setMessages([{ role: 'assistant', content: 'Conversa limpa! Como posso ajudar?' }])} className="flex items-center gap-2 px-3 py-2 text-sm text-surface-600 hover:text-red-600 hover:bg-red-50 rounded-lg">
+          <Trash2 className="w-4 h-4" /><span className="hidden sm:inline">Limpar</span>
+        </button>
+      </div>
+
+      <div className="flex-1 bg-white rounded-xl sm:rounded-2xl shadow-card overflow-hidden flex flex-col">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+          {messages.map((msg, idx) => (
+            <div key={idx} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+              <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex-shrink-0 flex items-center justify-center ${msg.role === 'user' ? 'bg-brand-100 text-brand-600' : 'bg-gradient-to-br from-violet-500 to-purple-600 text-white'}`}>
+                {msg.role === 'user' ? <User className="w-4 h-4 sm:w-5 sm:h-5" /> : <Bot className="w-4 h-4 sm:w-5 sm:h-5" />}
+              </div>
+              <div className={`max-w-[80%] sm:max-w-[70%] rounded-2xl px-4 py-3 ${msg.role === 'user' ? 'bg-brand-600 text-white rounded-tr-md' : 'bg-surface-100 text-surface-800 rounded-tl-md'}`}>
+                <div className="text-sm sm:text-base leading-relaxed space-y-1">{formatMessage(msg.content)}</div>
+              </div>
+            </div>
+          ))}
+          {isLoadingChat && (
+            <div className="flex gap-3">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center bg-gradient-to-br from-violet-500 to-purple-600 text-white">
+                <Bot className="w-4 h-4 sm:w-5 sm:h-5" />
+              </div>
+              <div className="bg-surface-100 rounded-2xl rounded-tl-md px-4 py-3">
+                <div className="flex items-center gap-2 text-surface-500">
+                  <Loader2 className="w-4 h-4 animate-spin" /><span className="text-sm">Pensando...</span>
+                </div>
+              </div>
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {chatError && (
+          <div className="mx-4 sm:mx-6 mb-2 flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg text-sm">
+            <AlertCircle className="w-4 h-4" /><span>{chatError}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSendMessage} className="p-4 sm:p-6 border-t border-surface-100">
+          <div className="flex gap-3">
+            <input ref={inputRef} type="text" value={inputMsg} onChange={(e) => setInputMsg(e.target.value)} placeholder="Digite sua pergunta..." disabled={isLoadingChat} className="flex-1 px-4 py-3 bg-surface-50 border border-surface-200 rounded-xl focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 text-sm sm:text-base disabled:opacity-50" />
+            <button type="submit" disabled={!inputMsg.trim() || isLoadingChat} className="px-4 sm:px-6 py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-xl font-medium hover:from-violet-700 hover:to-purple-700 disabled:opacity-50 flex items-center gap-2">
+              {isLoadingChat ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+              <span className="hidden sm:inline">Enviar</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 function App() {
   const [usuario, setUsuario] = useState(null)
   const [checkingAuth, setCheckingAuth] = useState(true)
