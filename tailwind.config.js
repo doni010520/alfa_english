@@ -4,6 +4,7 @@ export default {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
+  darkMode: 'class', // Ativa dark mode via classe
   theme: {
     extend: {
       fontFamily: {
@@ -54,11 +55,17 @@ export default {
       boxShadow: {
         'soft': '0 2px 15px -3px rgba(0, 0, 0, 0.07), 0 10px 20px -2px rgba(0, 0, 0, 0.04)',
         'card': '0 0 0 1px rgba(0,0,0,0.03), 0 2px 4px rgba(0,0,0,0.05), 0 12px 24px rgba(0,0,0,0.05)',
+        'glass': '0 8px 32px 0 rgba(31, 38, 135, 0.15)',
+        'glass-dark': '0 8px 32px 0 rgba(0, 0, 0, 0.3)',
+      },
+      backdropBlur: {
+        'glass': '16px',
       },
       animation: {
         'fade-in': 'fadeIn 0.5s ease-out',
         'slide-up': 'slideUp 0.5s ease-out',
         'scale-in': 'scaleIn 0.3s ease-out',
+        'glow': 'glow 2s ease-in-out infinite alternate',
       },
       keyframes: {
         fadeIn: {
@@ -72,6 +79,10 @@ export default {
         scaleIn: {
           '0%': { opacity: '0', transform: 'scale(0.95)' },
           '100%': { opacity: '1', transform: 'scale(1)' },
+        },
+        glow: {
+          '0%': { boxShadow: '0 0 20px rgba(12, 142, 230, 0.3)' },
+          '100%': { boxShadow: '0 0 30px rgba(217, 70, 239, 0.4)' },
         },
       },
     },
