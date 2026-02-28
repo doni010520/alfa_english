@@ -1014,7 +1014,7 @@ function App() {
                     </div>
                   )}
 
-                  {/* Diário de Classe */}
+{/* Diário de Classe */}
                   {activeTab === 'diario' && (
                     <div className="animate-fade-in">
                       <div className="mb-6 sm:mb-8">
@@ -1093,6 +1093,12 @@ function App() {
                       {!diarioTurmaId && <div className="bg-white rounded-xl sm:rounded-2xl shadow-card p-8 sm:p-12 text-center"><BookOpen className="w-12 h-12 sm:w-16 sm:h-16 text-surface-300 mx-auto mb-4" /><p className="text-surface-500 text-sm sm:text-base">Selecione uma turma</p></div>}
                     </div>
                   )}
+
+                  {/* Assistente IA - Apenas Admin */}
+                  {activeTab === 'assistente' && usuario?.perfil === 'admin' && (
+                    <AssistenteIA />
+                  )}
+
                 </>
               )}
             </div>
