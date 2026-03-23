@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from supabase import create_client, Client
 import json
+import httpx
 from datetime import datetime, date, timedelta
 
 load_dotenv()
@@ -741,6 +742,273 @@ async def chat(request: ChatRequest):
 async def health():
     """Health check"""
     return {"status": "ok", "timestamp": datetime.now().isoformat()}
+
+# ============================================
+# WHATSAPP VIA UAZAPI (v2 - uazapiGO)
+# ============================================
+
+UAZAPI_URL = os.getenv("UAZAPI_URL", "").rstrip("/")
+UAZAPI_TOKEN = os.getenv("UAZAPI_TOKEN", "")
+
+async def uazapi_request(method: str, path: str, data: dict = None) -> dict:
+    """Helper para fazer requests à UAZAPI"""
+    if not UAZAPI_URL or not UAZAPI_TOKEN:
+        raise HTTPException(status_code=503, detail="UAZAPI não configurada. Defina UAZAPI_URL e UAZAPI_TOKEN no .env")
+
+    url = f"{UAZAPI_URL}{path}"
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "token": UAZAPI_TOKEN,
+    }
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        try:
+            if method == "GET":
+                resp = await client.get(url, headers=headers)
+            elif method == "POST":
+                resp = await client.post(url, headers=headers, json=data or {})
+            else:
+                raise ValueError(f"Método {method} não suportado")
+
+            if resp.status_code >= 400:
+                return {"error": True, "status": resp.status_code, "detail": resp.text}
+
+            try:
+                return resp.json()
+            except Exception:
+                return {"raw": resp.text}
+        except httpx.ConnectError:
+            raise HTTPException(status_code=503, detail="Não foi possível conectar à UAZAPI. Verifique a URL.")
+        except httpx.TimeoutException:
+            raise HTTPException(status_code=504, detail="Timeout ao conectar à UAZAPI.")
+
+class SendMessageRequest(BaseModel):
+    phone: str
+    message: str
+    quotedMessageId: Optional[str] = None
+
+class SendMediaRequest(BaseModel):
+    phone: str
+    base64: str
+    filename: str = "file"
+    caption: str = ""
+    type: str = "image"  # image, audio, video, document
+
+class DeleteMessageRequest(BaseModel):
+    phone: str
+    messageId: str
+
+@app.get("/whatsapp/status")
+async def whatsapp_status():
+    """Verifica status da conexão WhatsApp"""
+    result = await uazapi_request("GET", "/api/status")
+    # Normaliza resposta - uazapiGO pode retornar formatos diferentes
+    connected = False
+    phone = None
+    if isinstance(result, dict):
+        connected = result.get("connected", False) or result.get("status") == "connected" or result.get("state") == "open"
+        phone = result.get("phone", result.get("wid", result.get("jid", None)))
+    return {"connected": connected, "phone": phone, "raw": result}
+
+@app.get("/whatsapp/qrcode")
+async def whatsapp_qrcode():
+    """Obtém QR code para conectar o WhatsApp"""
+    result = await uazapi_request("GET", "/api/qrcode")
+    return result
+
+@app.get("/whatsapp/chats")
+async def whatsapp_chats():
+    """Lista conversas do WhatsApp, enriquecidas com dados de alunos"""
+    result = await uazapi_request("GET", "/api/chats")
+
+    chats = result if isinstance(result, list) else result.get("chats", result.get("data", []))
+
+    # Busca todos os alunos para cruzar por telefone
+    alunos_result = supabase.table("alunos").select("id, nome, telefone, email, status_pedagogico").execute()
+    alunos_by_phone = {}
+    for aluno in (alunos_result.data or []):
+        if aluno.get("telefone"):
+            # Normaliza telefone: remove tudo que não é dígito
+            phone_clean = ''.join(c for c in aluno["telefone"] if c.isdigit())
+            alunos_by_phone[phone_clean] = aluno
+            # Também mapeia sem código do país (últimos 10-11 dígitos)
+            if len(phone_clean) > 10:
+                alunos_by_phone[phone_clean[-11:]] = aluno
+                alunos_by_phone[phone_clean[-10:]] = aluno
+
+    # Enriquece chats com dados de alunos
+    enriched = []
+    for chat in (chats if isinstance(chats, list) else []):
+        chat_phone = chat.get("id", chat.get("jid", chat.get("phone", "")))
+        phone_clean = ''.join(c for c in str(chat_phone) if c.isdigit())
+
+        aluno = alunos_by_phone.get(phone_clean)
+        if not aluno and len(phone_clean) > 10:
+            aluno = alunos_by_phone.get(phone_clean[-11:]) or alunos_by_phone.get(phone_clean[-10:])
+
+        enriched.append({
+            "phone": phone_clean,
+            "name": chat.get("name", chat.get("pushName", phone_clean)),
+            "lastMessage": chat.get("lastMessage", chat.get("last_message", {}).get("body", "")),
+            "timestamp": chat.get("timestamp", chat.get("t", "")),
+            "unread": chat.get("unreadCount", chat.get("unread", 0)),
+            "isGroup": chat.get("isGroup", False),
+            "aluno": aluno,
+        })
+
+    # Ordena por timestamp mais recente
+    enriched.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
+
+    return {"chats": enriched}
+
+@app.get("/whatsapp/messages/{phone}")
+async def whatsapp_messages(phone: str, limit: int = 50):
+    """Obtém histórico de mensagens de um contato"""
+    # Tenta diferentes formatos de endpoint da uazapiGO
+    result = await uazapi_request("POST", "/api/messages", {
+        "phone": phone,
+        "limit": limit
+    })
+
+    messages = result if isinstance(result, list) else result.get("messages", result.get("data", []))
+
+    formatted = []
+    for msg in (messages if isinstance(messages, list) else []):
+        msg_type = msg.get("type", msg.get("messageType", "text"))
+        body = msg.get("body", msg.get("message", msg.get("text", "")))
+
+        # Extrai dados de mídia
+        media_url = msg.get("mediaUrl", msg.get("media", msg.get("url", "")))
+        mimetype = msg.get("mimetype", msg.get("mimeType", ""))
+        filename = msg.get("filename", msg.get("fileName", ""))
+
+        # Extrai quoted message (reply)
+        quoted = msg.get("quotedMsg", msg.get("contextInfo", {}).get("quotedMessage", None))
+        quoted_data = None
+        if quoted:
+            quoted_data = {
+                "body": quoted.get("body", quoted.get("conversation", quoted.get("text", ""))),
+                "fromMe": quoted.get("fromMe", False),
+            }
+
+        # Status de entrega
+        msg_status = msg.get("ack", msg.get("status", None))
+        # 0=pending, 1=sent, 2=delivered, 3=read
+        status_map = {0: "pending", 1: "sent", 2: "delivered", 3: "read", "sent": "sent", "delivered": "delivered", "read": "read"}
+        status_str = status_map.get(msg_status, "sent") if msg_status is not None else None
+
+        # Sender para grupos
+        sender = msg.get("author", msg.get("participant", msg.get("sender", "")))
+        sender_name = msg.get("pushName", msg.get("senderName", ""))
+
+        formatted.append({
+            "id": msg.get("id", msg.get("key", {}).get("id", "")),
+            "body": body,
+            "fromMe": msg.get("fromMe", msg.get("key", {}).get("fromMe", False)),
+            "timestamp": msg.get("timestamp", msg.get("t", "")),
+            "type": msg_type,
+            "mediaUrl": media_url,
+            "mimetype": mimetype,
+            "filename": filename,
+            "status": status_str,
+            "sender": sender,
+            "senderName": sender_name,
+            "quoted": quoted_data,
+        })
+
+    return {"messages": formatted}
+
+@app.post("/whatsapp/send")
+async def whatsapp_send(req: SendMessageRequest):
+    """Envia mensagem de texto via WhatsApp (com suporte a reply)"""
+    payload = {
+        "phone": req.phone,
+        "message": req.message
+    }
+    if req.quotedMessageId:
+        payload["quotedMessageId"] = req.quotedMessageId
+    result = await uazapi_request("POST", "/api/sendText", payload)
+    return {"success": True, "result": result}
+
+@app.post("/whatsapp/send-media")
+async def whatsapp_send_media(req: SendMediaRequest):
+    """Envia mídia via WhatsApp (imagem, áudio, vídeo, documento)"""
+    payload = {
+        "phone": req.phone,
+        "base64": req.base64,
+        "filename": req.filename,
+        "caption": req.caption,
+    }
+    # uazapiGO pode usar diferentes endpoints por tipo
+    endpoint_map = {
+        "image": "/api/sendFile",
+        "audio": "/api/sendFile",
+        "video": "/api/sendFile",
+        "document": "/api/sendFile",
+    }
+    endpoint = endpoint_map.get(req.type, "/api/sendFile")
+    result = await uazapi_request("POST", endpoint, payload)
+    return {"success": True, "result": result}
+
+@app.delete("/whatsapp/message")
+async def whatsapp_delete_message(req: DeleteMessageRequest):
+    """Deleta mensagem do WhatsApp"""
+    result = await uazapi_request("POST", "/api/deleteMessage", {
+        "phone": req.phone,
+        "messageId": req.messageId,
+    })
+    return {"success": True, "result": result}
+
+@app.get("/whatsapp/presence/{phone}")
+async def whatsapp_presence(phone: str):
+    """Verifica presença (online/offline) de um contato"""
+    result = await uazapi_request("GET", f"/api/presence/{phone}")
+    online = False
+    last_seen = None
+    if isinstance(result, dict):
+        online = result.get("online", result.get("available", False))
+        last_seen = result.get("lastSeen", result.get("last_seen", None))
+    return {"online": online, "lastSeen": last_seen}
+
+@app.post("/whatsapp/webhook")
+async def whatsapp_webhook(data: dict = {}):
+    """Receptor de webhooks da UAZAPI (mensagens recebidas)"""
+    # Log para debug
+    print(f"Webhook UAZAPI: {json.dumps(data, ensure_ascii=False, default=str)[:500]}")
+
+    # Tenta salvar mensagem recebida no Supabase
+    try:
+        event = data.get("event", "")
+        msg_data = data.get("data", data)
+
+        if event in ("message", "messages.upsert", ""):
+            phone = msg_data.get("from", msg_data.get("phone", ""))
+            body = msg_data.get("body", msg_data.get("message", msg_data.get("text", "")))
+
+            if phone and body:
+                phone_clean = ''.join(c for c in str(phone) if c.isdigit())
+
+                # Tenta vincular a um aluno
+                aluno_id = None
+                alunos = supabase.table("alunos").select("id, telefone").execute()
+                for aluno in (alunos.data or []):
+                    if aluno.get("telefone"):
+                        aluno_phone = ''.join(c for c in aluno["telefone"] if c.isdigit())
+                        if phone_clean.endswith(aluno_phone[-10:]) or aluno_phone.endswith(phone_clean[-10:]):
+                            aluno_id = aluno["id"]
+                            break
+
+                supabase.table("whatsapp_mensagens").insert({
+                    "phone": phone_clean,
+                    "message": body[:2000],
+                    "direction": "incoming",
+                    "aluno_id": aluno_id,
+                }).execute()
+    except Exception as e:
+        print(f"Erro ao salvar webhook: {e}")
+
+    return {"status": "ok"}
 
 # ============================================
 # EXECUÇÃO
