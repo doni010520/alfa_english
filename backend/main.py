@@ -13,6 +13,9 @@ from openai import OpenAI
 from supabase import create_client, Client
 import json
 import httpx
+import base64
+import tempfile
+import uuid
 from datetime import datetime, date, timedelta
 
 load_dotenv()
@@ -737,6 +740,350 @@ async def chat(request: ChatRequest):
     except Exception as e:
         print(f"Erro no chat: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# ============================================
+# ALERTAS (Faltas + Inadimplência)
+# ============================================
+
+@app.get("/alertas")
+async def get_alertas():
+    """Retorna alertas de faltas da semana e alunos inadimplentes"""
+    today = datetime.now()
+    inicio_semana = (today - timedelta(days=today.weekday())).strftime("%Y-%m-%d")
+    fim_semana = (today + timedelta(days=6 - today.weekday())).strftime("%Y-%m-%d")
+
+    # Faltas da semana
+    aulas = supabase.table("aulas").select("id, data, turma:turmas(id, nome)").gte("data", inicio_semana).lte("data", fim_semana).execute()
+    aula_ids = [a["id"] for a in (aulas.data or [])]
+
+    faltas_por_aluno = {}
+    if aula_ids:
+        presencas = supabase.table("presencas").select("*, aluno:alunos(id, nome, telefone), aula:aulas(data, turma:turmas(nome))").in_("aula_id", aula_ids).eq("presente", False).execute()
+        for p in (presencas.data or []):
+            aluno = p.get("aluno", {})
+            aid = aluno.get("id", "")
+            if aid not in faltas_por_aluno:
+                faltas_por_aluno[aid] = {"aluno": aluno, "total": 0, "turmas": set(), "datas": []}
+            faltas_por_aluno[aid]["total"] += 1
+            turma_nome = p.get("aula", {}).get("turma", {}).get("nome", "")
+            if turma_nome:
+                faltas_por_aluno[aid]["turmas"].add(turma_nome)
+            faltas_por_aluno[aid]["datas"].append(p.get("aula", {}).get("data", ""))
+
+    faltas_lista = []
+    for aid, info in faltas_por_aluno.items():
+        faltas_lista.append({
+            "aluno_id": aid,
+            "nome": info["aluno"].get("nome", ""),
+            "telefone": info["aluno"].get("telefone", ""),
+            "total_faltas": info["total"],
+            "turmas": list(info["turmas"]),
+            "datas": info["datas"],
+        })
+    faltas_lista.sort(key=lambda x: x["total_faltas"], reverse=True)
+
+    # Inadimplentes
+    inadimplentes_result = supabase.table("alunos").select("id, nome, telefone, email, status_financeiro, valor_mensalidade, dia_vencimento").in_("status_financeiro", ["pendente", "inadimplente"]).eq("status_pedagogico", "ativo").order("nome").execute()
+
+    inadimplentes = []
+    for aluno in (inadimplentes_result.data or []):
+        inadimplentes.append({
+            "aluno_id": aluno["id"],
+            "nome": aluno.get("nome", ""),
+            "telefone": aluno.get("telefone", ""),
+            "email": aluno.get("email", ""),
+            "status": aluno.get("status_financeiro", ""),
+            "valor_mensalidade": aluno.get("valor_mensalidade"),
+            "dia_vencimento": aluno.get("dia_vencimento"),
+        })
+
+    return {
+        "faltas": faltas_lista,
+        "inadimplentes": inadimplentes,
+        "resumo": {
+            "totalFaltasSemana": sum(f["total_faltas"] for f in faltas_lista),
+            "alunosComFalta": len(faltas_lista),
+            "totalInadimplentes": len(inadimplentes),
+        },
+        "periodo": {"inicio": inicio_semana, "fim": fim_semana},
+    }
+
+# ============================================
+# INTEGRAÇÃO BANCO CORA
+# ============================================
+
+CORA_CLIENT_ID = os.getenv("CORA_CLIENT_ID", "")
+CORA_CERT_B64 = os.getenv("CORA_CERTIFICATE_BASE64", "")
+CORA_KEY_B64 = os.getenv("CORA_PRIVATE_KEY_BASE64", "")
+CORA_ENV = os.getenv("CORA_ENVIRONMENT", "stage")
+
+CORA_BASE_URLS = {
+    "stage": "https://matls-clients.api.stage.cora.com.br",
+    "production": "https://matls-clients.api.cora.com.br",
+}
+
+_cora_token_cache = {"token": None, "expires_at": 0}
+
+async def cora_get_token() -> str:
+    """Obtém access token da Cora via mTLS"""
+    now = datetime.now().timestamp()
+    if _cora_token_cache["token"] and _cora_token_cache["expires_at"] > now:
+        return _cora_token_cache["token"]
+
+    if not CORA_CLIENT_ID or not CORA_CERT_B64 or not CORA_KEY_B64:
+        raise HTTPException(status_code=503, detail="Cora não configurada. Defina CORA_CLIENT_ID, CORA_CERTIFICATE_BASE64 e CORA_PRIVATE_KEY_BASE64")
+
+    # Decodifica certificados de base64 para arquivos temporários
+    cert_bytes = base64.b64decode(CORA_CERT_B64)
+    key_bytes = base64.b64decode(CORA_KEY_B64)
+
+    cert_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pem")
+    key_file = tempfile.NamedTemporaryFile(delete=False, suffix=".key")
+    cert_file.write(cert_bytes)
+    cert_file.close()
+    key_file.write(key_bytes)
+    key_file.close()
+
+    base_url = CORA_BASE_URLS.get(CORA_ENV, CORA_BASE_URLS["stage"])
+
+    try:
+        async with httpx.AsyncClient(cert=(cert_file.name, key_file.name), timeout=30.0) as client:
+            resp = await client.post(
+                f"{base_url}/token",
+                data={"grant_type": "client_credentials", "client_id": CORA_CLIENT_ID},
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+            if resp.status_code != 200:
+                raise HTTPException(status_code=resp.status_code, detail=f"Erro auth Cora: {resp.text}")
+            data = resp.json()
+            _cora_token_cache["token"] = data["access_token"]
+            _cora_token_cache["expires_at"] = now + data.get("expires_in", 86400) - 300
+            return data["access_token"]
+    finally:
+        import os as _os
+        _os.unlink(cert_file.name)
+        _os.unlink(key_file.name)
+
+async def cora_request(method: str, path: str, data: dict = None) -> dict:
+    """Request autenticado à API Cora"""
+    token = await cora_get_token()
+    base_url = CORA_BASE_URLS.get(CORA_ENV, CORA_BASE_URLS["stage"])
+
+    # Decodifica certificados novamente para mTLS
+    cert_bytes = base64.b64decode(CORA_CERT_B64)
+    key_bytes = base64.b64decode(CORA_KEY_B64)
+    cert_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pem")
+    key_file = tempfile.NamedTemporaryFile(delete=False, suffix=".key")
+    cert_file.write(cert_bytes)
+    cert_file.close()
+    key_file.write(key_bytes)
+    key_file.close()
+
+    try:
+        async with httpx.AsyncClient(cert=(cert_file.name, key_file.name), timeout=30.0) as client:
+            headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+            if method == "POST":
+                headers["Idempotency-Key"] = str(uuid.uuid4())
+                resp = await client.post(f"{base_url}{path}", headers=headers, json=data or {})
+            elif method == "GET":
+                resp = await client.get(f"{base_url}{path}", headers=headers, params=data)
+            elif method == "DELETE":
+                resp = await client.delete(f"{base_url}{path}", headers=headers)
+            else:
+                raise ValueError(f"Método {method} não suportado")
+
+            if resp.status_code >= 400:
+                return {"error": True, "status": resp.status_code, "detail": resp.text}
+            try:
+                return resp.json()
+            except Exception:
+                return {"raw": resp.text}
+    finally:
+        import os as _os
+        _os.unlink(cert_file.name)
+        _os.unlink(key_file.name)
+
+class GerarBoletoRequest(BaseModel):
+    aluno_id: str
+    valor: Optional[int] = None  # em centavos, se não informado usa valor_mensalidade
+    vencimento: Optional[str] = None  # YYYY-MM-DD, se não informado calcula
+
+@app.get("/cora/status")
+async def cora_status():
+    """Verifica se a integração Cora está configurada"""
+    configured = bool(CORA_CLIENT_ID and CORA_CERT_B64 and CORA_KEY_B64)
+    if not configured:
+        return {"configured": False, "environment": CORA_ENV}
+    try:
+        await cora_get_token()
+        return {"configured": True, "authenticated": True, "environment": CORA_ENV}
+    except Exception as e:
+        return {"configured": True, "authenticated": False, "error": str(e), "environment": CORA_ENV}
+
+@app.post("/cora/gerar-boleto")
+async def cora_gerar_boleto(req: GerarBoletoRequest):
+    """Gera boleto para um aluno via Cora"""
+    # Busca dados do aluno
+    aluno_result = supabase.table("alunos").select("*").eq("id", req.aluno_id).single().execute()
+    if not aluno_result.data:
+        raise HTTPException(status_code=404, detail="Aluno não encontrado")
+    aluno = aluno_result.data
+
+    # Calcula valor (em centavos)
+    valor = req.valor
+    if not valor:
+        if not aluno.get("valor_mensalidade"):
+            raise HTTPException(status_code=400, detail="Aluno sem valor de mensalidade configurado")
+        desconto = float(aluno.get("desconto", 0) or 0)
+        valor_base = float(aluno["valor_mensalidade"])
+        valor_final = valor_base * (1 - desconto / 100)
+        valor = int(valor_final * 100)  # converte para centavos
+
+    # Calcula vencimento
+    vencimento = req.vencimento
+    if not vencimento:
+        dia = aluno.get("dia_vencimento", 10) or 10
+        hoje = date.today()
+        mes = hoje.month + 1 if hoje.day > dia else hoje.month
+        ano = hoje.year + (1 if mes > 12 else 0)
+        mes = mes if mes <= 12 else 1
+        try:
+            vencimento = date(ano, mes, min(dia, 28)).isoformat()
+        except ValueError:
+            vencimento = date(ano, mes, 28).isoformat()
+
+    # Monta payload para Cora
+    invoice_data = {
+        "code": f"EDLNG-{aluno['id'][:8]}-{vencimento}",
+        "customer": {
+            "name": aluno.get("nome", ""),
+            "email": aluno.get("email", "aluno@edulingua.com"),
+            "document": {
+                "identity": (aluno.get("cpf") or "").replace(".", "").replace("-", ""),
+                "type": "CPF",
+            },
+            "address": {
+                "street": aluno.get("rua", ""),
+                "number": aluno.get("numero", "S/N"),
+                "district": aluno.get("bairro", ""),
+                "city": aluno.get("cidade", ""),
+                "state": aluno.get("estado", ""),
+                "zip_code": (aluno.get("cep") or "").replace("-", ""),
+            },
+        },
+        "services": [{
+            "name": "Mensalidade EduLingua",
+            "description": f"Mensalidade escola de idiomas - Venc. {vencimento}",
+            "amount": valor,
+        }],
+        "payment_terms": {
+            "due_date": vencimento,
+        },
+        "payment_forms": ["BANK_SLIP", "PIX"],
+    }
+
+    # Notificação por email se disponível
+    if aluno.get("email"):
+        invoice_data["notification"] = {
+            "name": aluno.get("nome", ""),
+            "channels": [{
+                "channel": "EMAIL",
+                "contact": aluno["email"],
+                "rules": ["BEFORE_DUE_DATE", "ON_DUE_DATE", "AFTER_DUE_DATE"],
+            }],
+        }
+
+    result = await cora_request("POST", "/v2/invoices/", invoice_data)
+
+    if result.get("error"):
+        raise HTTPException(status_code=result.get("status", 500), detail=result.get("detail", "Erro ao gerar boleto"))
+
+    # Salva cobrança no Supabase
+    try:
+        boleto_url = result.get("payment_options", {}).get("bank_slip", {}).get("url", "")
+        boleto_barcode = result.get("payment_options", {}).get("bank_slip", {}).get("digitable", "")
+        pix_emv = result.get("pix", {}).get("emv", "")
+
+        supabase.table("cobrancas").insert({
+            "aluno_id": req.aluno_id,
+            "cora_invoice_id": result.get("id", ""),
+            "valor": valor,
+            "vencimento": vencimento,
+            "status": "aberto",
+            "boleto_url": boleto_url,
+            "boleto_barcode": boleto_barcode,
+            "pix_emv": pix_emv,
+        }).execute()
+    except Exception as e:
+        print(f"Erro ao salvar cobrança: {e}")
+
+    return {
+        "success": True,
+        "invoice_id": result.get("id"),
+        "boleto_url": boleto_url,
+        "boleto_barcode": boleto_barcode,
+        "pix_emv": pix_emv,
+        "valor": valor,
+        "vencimento": vencimento,
+    }
+
+@app.post("/cora/gerar-mensalidades")
+async def cora_gerar_mensalidades():
+    """Gera boletos em lote para todos alunos ativos"""
+    alunos_result = supabase.table("alunos").select("id, nome, valor_mensalidade, dia_vencimento").eq("status_pedagogico", "ativo").execute()
+    alunos = [a for a in (alunos_result.data or []) if a.get("valor_mensalidade")]
+
+    gerados = []
+    erros = []
+    for aluno in alunos:
+        try:
+            result = await cora_gerar_boleto(GerarBoletoRequest(aluno_id=aluno["id"]))
+            gerados.append({"aluno_id": aluno["id"], "nome": aluno["nome"], "invoice_id": result.get("invoice_id")})
+        except Exception as e:
+            erros.append({"aluno_id": aluno["id"], "nome": aluno["nome"], "erro": str(e)})
+
+    return {"gerados": len(gerados), "erros": len(erros), "detalhes_gerados": gerados, "detalhes_erros": erros}
+
+@app.get("/cora/boletos")
+async def cora_boletos(aluno_id: str = None, status: str = None):
+    """Lista cobranças do Supabase"""
+    query = supabase.table("cobrancas").select("*, aluno:alunos(id, nome, email, telefone)")
+    if aluno_id:
+        query = query.eq("aluno_id", aluno_id)
+    if status:
+        query = query.eq("status", status)
+    result = query.order("created_at", desc=True).limit(100).execute()
+    return {"boletos": result.data or []}
+
+@app.post("/cora/webhook")
+async def cora_webhook(data: dict = {}):
+    """Webhook do Cora — atualiza status de cobranças"""
+    print(f"Webhook Cora: {json.dumps(data, ensure_ascii=False, default=str)[:500]}")
+    try:
+        # Cora envia eventos de mudança de status
+        invoice_id = data.get("id", data.get("invoice_id", data.get("data", {}).get("id", "")))
+        new_status = data.get("status", data.get("state", data.get("data", {}).get("status", "")))
+
+        if invoice_id:
+            status_map = {"PAID": "pago", "CANCELLED": "cancelado", "OVERDUE": "vencido", "OPEN": "aberto"}
+            mapped = status_map.get(new_status.upper() if new_status else "", None)
+
+            if mapped:
+                # Atualiza cobrança
+                update_data = {"status": mapped}
+                if mapped == "pago":
+                    update_data["pago_em"] = datetime.now().isoformat()
+                supabase.table("cobrancas").update(update_data).eq("cora_invoice_id", invoice_id).execute()
+
+                # Se pago, atualiza status financeiro do aluno
+                if mapped == "pago":
+                    cobranca = supabase.table("cobrancas").select("aluno_id").eq("cora_invoice_id", invoice_id).execute()
+                    if cobranca.data:
+                        supabase.table("alunos").update({"status_financeiro": "em_dia"}).eq("id", cobranca.data[0]["aluno_id"]).execute()
+    except Exception as e:
+        print(f"Erro webhook Cora: {e}")
+
+    return {"status": "ok"}
 
 @app.get("/health")
 async def health():

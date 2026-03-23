@@ -809,6 +809,10 @@ function App() {
   const [searchProfessor, setSearchProfessor] = useState('')
   const [toast, setToast] = useState(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [alertas, setAlertas] = useState({ faltas: [], inadimplentes: [], resumo: { totalFaltasSemana: 0, alunosComFalta: 0, totalInadimplentes: 0 } })
+  const [coraStatus, setCoraStatus] = useState(null)
+  const [cobrancas, setCobrancas] = useState([])
+  const [gerandoBoletos, setGerandoBoletos] = useState(false)
 
   const [modalTurma, setModalTurma] = useState({ open: false, data: null })
   const [modalAluno, setModalAluno] = useState({ open: false, data: null })
@@ -877,6 +881,17 @@ function App() {
       setAlunos(alunosRes.data || [])
       setUsuarios(usuariosRes.data || [])
       setAulas(aulasRes.data || [])
+      // Carrega alertas e Cora em paralelo (não bloqueia se falhar)
+      try {
+        const [alertasRes, coraRes, cobrancasRes] = await Promise.all([
+          fetch(`${API_URL}/alertas`).then(r => r.json()).catch(() => null),
+          fetch(`${API_URL}/cora/status`).then(r => r.json()).catch(() => null),
+          fetch(`${API_URL}/cora/boletos`).then(r => r.json()).catch(() => null),
+        ])
+        if (alertasRes) setAlertas(alertasRes)
+        if (coraRes) setCoraStatus(coraRes)
+        if (cobrancasRes) setCobrancas(cobrancasRes.boletos || [])
+      } catch {}
     } catch (error) {
       console.error('Erro ao carregar dados:', error)
       showToast('Erro ao carregar dados', 'error')
@@ -1173,6 +1188,7 @@ function App() {
         { id: 'alunos', icon: Users, label: 'Alunos' },
         { id: 'professores', icon: GraduationCap, label: 'Professores' },
         { id: 'diario', icon: ClipboardList, label: 'Diário de Classe' },
+        { id: 'financeiro', icon: DollarSign, label: 'Financeiro' },
         { id: 'whatsapp', icon: MessageCircle, label: 'WhatsApp' },
         { id: 'assistente', icon: Bot, label: 'Assistente IA' },
       ]
@@ -1306,6 +1322,50 @@ function App() {
                         <h2 className="text-2xl sm:text-3xl font-display font-bold text-surface-900 mb-1 sm:mb-2">Dashboard</h2>
                         <p className="text-surface-600 text-sm sm:text-base">Visão geral da escola</p>
                       </div>
+                      {/* Painel de Alertas */}
+                      {(alertas.resumo.alunosComFalta > 0 || alertas.resumo.totalInadimplentes > 0) && (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 mb-6">
+                          {alertas.resumo.alunosComFalta > 0 && (
+                            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+                              <div className="flex items-center justify-between mb-3">
+                                <h4 className="font-semibold text-red-800 dark:text-red-300 text-sm flex items-center gap-2"><AlertCircle className="w-4 h-4" />Faltas da Semana</h4>
+                                <span className="badge bg-red-100 text-red-700 text-xs">{alertas.resumo.totalFaltasSemana} falta{alertas.resumo.totalFaltasSemana !== 1 ? 's' : ''}</span>
+                              </div>
+                              <div className="space-y-2 max-h-32 overflow-y-auto">
+                                {alertas.faltas.slice(0, 5).map(f => (
+                                  <div key={f.aluno_id} className="flex items-center justify-between text-sm">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-6 h-6 bg-red-200 rounded-full flex items-center justify-center text-red-700 text-xs font-bold">{f.total_faltas}</div>
+                                      <span className="text-red-900 dark:text-red-200">{f.nome}</span>
+                                    </div>
+                                    <span className="text-xs text-red-600 dark:text-red-400">{f.turmas.join(', ')}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {alertas.resumo.totalInadimplentes > 0 && (
+                            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
+                              <div className="flex items-center justify-between mb-3">
+                                <h4 className="font-semibold text-amber-800 dark:text-amber-300 text-sm flex items-center gap-2"><DollarSign className="w-4 h-4" />Inadimplentes</h4>
+                                <span className="badge bg-amber-100 text-amber-700 text-xs">{alertas.resumo.totalInadimplentes} aluno{alertas.resumo.totalInadimplentes !== 1 ? 's' : ''}</span>
+                              </div>
+                              <div className="space-y-2 max-h-32 overflow-y-auto">
+                                {alertas.inadimplentes.slice(0, 5).map(a => (
+                                  <div key={a.aluno_id} className="flex items-center justify-between text-sm">
+                                    <span className="text-amber-900 dark:text-amber-200">{a.nome}</span>
+                                    <div className="flex items-center gap-2">
+                                      {a.valor_mensalidade && <span className="text-xs text-amber-600">{formatCurrency(a.valor_mensalidade)}</span>}
+                                      <span className={`badge text-xs ${a.status === 'inadimplente' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{a.status === 'inadimplente' ? 'Inadimplente' : 'Pendente'}</span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-6 sm:mb-8">
                         <div className="glass rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-card">
                           <div className="flex items-center justify-between mb-3 sm:mb-4">
@@ -1702,6 +1762,73 @@ function App() {
                   )}
 
                   {/* WhatsApp - Apenas Admin */}
+                  {/* Financeiro - Cora */}
+                  {activeTab === 'financeiro' && usuario?.perfil === 'admin' && (
+                    <div className="animate-fade-in">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
+                        <div>
+                          <h2 className="text-2xl sm:text-3xl font-display font-bold text-surface-900 mb-1 sm:mb-2">Financeiro</h2>
+                          <p className="text-surface-600 text-sm sm:text-base">Cobranças e boletos via Banco Cora</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className={`badge text-xs flex items-center gap-1 ${coraStatus?.authenticated ? 'bg-emerald-100 text-emerald-700' : coraStatus?.configured ? 'bg-amber-100 text-amber-700' : 'bg-surface-100 text-surface-600'}`}>
+                            {coraStatus?.authenticated ? <><Wifi className="w-3 h-3" />Cora Conectada</> : coraStatus?.configured ? <><AlertCircle className="w-3 h-3" />Erro Auth</> : 'Cora Não Configurada'}
+                          </span>
+                          <button onClick={async () => { setGerandoBoletos(true); try { const r = await fetch(`${API_URL}/cora/gerar-mensalidades`, { method: 'POST' }); const d = await r.json(); if (d.gerados > 0) showToast(`${d.gerados} boleto(s) gerado(s)!`, 'success'); else showToast(d.detalhes_erros?.[0]?.erro || 'Nenhum boleto gerado', 'error'); loadData() } catch { showToast('Erro ao gerar boletos', 'error') } setGerandoBoletos(false) }} disabled={gerandoBoletos || !coraStatus?.authenticated} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 disabled:opacity-50 text-sm">
+                            {gerandoBoletos ? <Loader2 className="w-4 h-4 animate-spin" /> : <DollarSign className="w-4 h-4" />}
+                            Gerar Mensalidades
+                          </button>
+                        </div>
+                      </div>
+
+                      {!coraStatus?.configured && (
+                        <div className="glass rounded-2xl shadow-card p-8 text-center max-w-lg mx-auto">
+                          <div className="w-16 h-16 bg-surface-100 rounded-2xl flex items-center justify-center mx-auto mb-4"><DollarSign className="w-8 h-8 text-surface-400" /></div>
+                          <h3 className="text-lg font-semibold text-surface-900 mb-2">Integração Cora não configurada</h3>
+                          <p className="text-sm text-surface-600 mb-4">Configure as variáveis de ambiente no backend para usar a geração automática de boletos:</p>
+                          <div className="text-left bg-surface-50 rounded-xl p-4 text-xs font-mono space-y-1 text-surface-600">
+                            <p>CORA_CLIENT_ID=seu-client-id</p>
+                            <p>CORA_CERTIFICATE_BASE64=base64...</p>
+                            <p>CORA_PRIVATE_KEY_BASE64=base64...</p>
+                            <p>CORA_ENVIRONMENT=stage</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {coraStatus?.configured && (
+                        <div className="glass rounded-xl sm:rounded-2xl shadow-card overflow-hidden">
+                          <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-surface-100 flex items-center justify-between">
+                            <h3 className="font-display font-semibold text-surface-900 text-sm sm:text-base">Cobranças</h3>
+                            <span className="text-xs text-surface-400">{cobrancas.length} registro(s)</span>
+                          </div>
+                          {cobrancas.length > 0 ? (
+                            <div className="divide-y divide-surface-100">
+                              {cobrancas.map(c => (
+                                <div key={c.id} className="px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between hover:bg-surface-50">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-gradient-to-br from-brand-400 to-accent-400 rounded-full flex items-center justify-center text-white font-semibold text-sm">{(c.aluno?.nome || '?').charAt(0).toUpperCase()}</div>
+                                    <div>
+                                      <p className="font-medium text-surface-900 text-sm">{c.aluno?.nome || 'Aluno'}</p>
+                                      <p className="text-xs text-surface-500">Venc. {c.vencimento || '-'} - {formatCurrency(c.valor / 100)}</p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className={`badge text-xs ${c.status === 'pago' ? 'bg-emerald-100 text-emerald-700' : c.status === 'vencido' ? 'bg-red-100 text-red-700' : c.status === 'cancelado' ? 'bg-surface-100 text-surface-600' : 'bg-amber-100 text-amber-700'}`}>
+                                      {c.status === 'pago' ? 'Pago' : c.status === 'vencido' ? 'Vencido' : c.status === 'cancelado' ? 'Cancelado' : 'Aberto'}
+                                    </span>
+                                    {c.boleto_url && <a href={c.boleto_url} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg hover:bg-surface-100 text-surface-500"><Download className="w-4 h-4" /></a>}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="px-4 sm:px-6 py-8 sm:py-12 text-center"><DollarSign className="w-10 h-10 text-surface-300 mx-auto mb-4" /><p className="text-surface-500 text-sm">Nenhuma cobrança gerada</p></div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {activeTab === 'whatsapp' && usuario?.perfil === 'admin' && (
                     <WhatsAppChat />
                   )}

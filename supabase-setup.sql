@@ -227,3 +227,38 @@ BEGIN
         (turma_espanhol, aluno_carla)
     ON CONFLICT DO NOTHING;
 END $$;
+
+-- =============================================
+-- TABELA DE COBRANÇAS (Integração Banco Cora)
+-- =============================================
+CREATE TABLE IF NOT EXISTS cobrancas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    aluno_id UUID REFERENCES alunos(id) ON DELETE CASCADE,
+    cora_invoice_id VARCHAR(100),
+    valor INTEGER NOT NULL, -- em centavos
+    vencimento DATE,
+    status VARCHAR(20) DEFAULT 'aberto', -- aberto, pago, cancelado, vencido
+    boleto_url TEXT,
+    boleto_barcode VARCHAR(100),
+    pix_emv TEXT,
+    pago_em TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_cobrancas_aluno ON cobrancas(aluno_id);
+CREATE INDEX IF NOT EXISTS idx_cobrancas_status ON cobrancas(status);
+CREATE INDEX IF NOT EXISTS idx_cobrancas_vencimento ON cobrancas(vencimento);
+
+-- =============================================
+-- TABELA DE MENSAGENS WHATSAPP (cache)
+-- =============================================
+CREATE TABLE IF NOT EXISTS whatsapp_mensagens (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    phone VARCHAR(20) NOT NULL,
+    message TEXT,
+    direction VARCHAR(10) DEFAULT 'incoming',
+    timestamp TIMESTAMPTZ DEFAULT NOW(),
+    aluno_id UUID REFERENCES alunos(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_whatsapp_phone ON whatsapp_mensagens(phone);
