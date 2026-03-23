@@ -293,6 +293,7 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [searchTurma, setSearchTurma] = useState('')
   const [searchAluno, setSearchAluno] = useState('')
+  const [sortAlunos, setSortAlunos] = useState('nome')
   const [searchProfessor, setSearchProfessor] = useState('')
   const [toast, setToast] = useState(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -306,6 +307,8 @@ function App() {
   const [modalAula, setModalAula] = useState({ open: false, turma: null, data: null })
 
   const [alunoTab, setAlunoTab] = useState('pessoais')
+  const [wizardStep, setWizardStep] = useState(1)
+  const [wizTurmaId, setWizTurmaId] = useState(null)
   const [diarioTurmaId, setDiarioTurmaId] = useState('')
 
   const [formTurma, setFormTurma] = useState({ nome: '', idioma: 'Inglês', professor_id: '', horario: '', dias_semana: '', livro: '' })
@@ -447,6 +450,29 @@ function App() {
     } catch (error) { console.error('Erro ao salvar aluno:', error); showToast('Erro ao salvar aluno', 'error') }
   }
 
+  async function saveAlunoWizard() {
+    try {
+      const dataToSave = {
+        ...formAluno,
+        aniversario_dia: formAluno.aniversario_dia ? parseInt(formAluno.aniversario_dia) : null,
+        aniversario_mes: formAluno.aniversario_mes ? parseInt(formAluno.aniversario_mes) : null,
+        dia_vencimento: formAluno.dia_vencimento ? parseInt(formAluno.dia_vencimento) : null,
+        valor_mensalidade: formAluno.valor_mensalidade ? parseFloat(formAluno.valor_mensalidade) : null,
+        desconto: formAluno.desconto ? parseFloat(formAluno.desconto) : 0,
+      }
+      const { data: alunoData, error } = await supabase.from('alunos').insert([dataToSave]).select().single()
+      if (error) throw error
+      if (wizTurmaId && alunoData) {
+        const { error: matError } = await supabase.from('matriculas').insert([{ turma_id: wizTurmaId, aluno_id: alunoData.id }])
+        if (matError && matError.code !== '23505') throw matError
+      }
+      showToast(wizTurmaId ? 'Aluno cadastrado e matriculado!' : 'Aluno cadastrado!', 'success')
+      setModalAluno({ open: false, data: null })
+      resetFormAluno()
+      loadData()
+    } catch (error) { console.error('Erro no onboarding:', error); showToast('Erro ao cadastrar aluno', 'error') }
+  }
+
   async function deleteAluno(id) {
     if (!confirm('Excluir este aluno?')) return
     try {
@@ -474,7 +500,7 @@ function App() {
     setModalAluno({ open: true, data: aluno })
   }
 
-  function resetFormAluno() { setFormAluno({ ...emptyFormAluno }); setAlunoTab('pessoais') }
+  function resetFormAluno() { setFormAluno({ ...emptyFormAluno }); setAlunoTab('pessoais'); setWizardStep(1); setWizTurmaId(null) }
 
   async function saveProfessor() {
     try {
@@ -599,8 +625,25 @@ function App() {
     setSenhaLoading(false)
   }
 
+  function calcularOnboarding(aluno) {
+    return [
+      { label: 'Dados pessoais', completo: !!(aluno.nome && (aluno.telefone || aluno.email)) },
+      { label: 'Endereço', completo: !!(aluno.cidade && aluno.estado) },
+      { label: 'Financeiro', completo: !!(aluno.valor_mensalidade && aluno.dia_vencimento) },
+      { label: 'Matrícula em turma', completo: aluno.matriculas?.some(m => m.status === 'ativo') || false },
+      { label: 'Responsável', completo: !!aluno.responsavel_nome },
+    ]
+  }
+
   const turmasFiltradas = turmas.filter(t => t.nome.toLowerCase().includes(searchTurma.toLowerCase()) || t.idioma.toLowerCase().includes(searchTurma.toLowerCase()) || (t.professor?.nome && t.professor.nome.toLowerCase().includes(searchTurma.toLowerCase())) || (t.livro && t.livro.toLowerCase().includes(searchTurma.toLowerCase())))
-  const alunosFiltrados = alunos.filter(a => (a.nome || '').toLowerCase().includes(searchAluno.toLowerCase()) || (a.email && a.email.toLowerCase().includes(searchAluno.toLowerCase())) || (a.cpf && a.cpf.includes(searchAluno)))
+  const alunosFiltrados = alunos.filter(a => (a.nome || '').toLowerCase().includes(searchAluno.toLowerCase()) || (a.email && a.email.toLowerCase().includes(searchAluno.toLowerCase())) || (a.cpf && a.cpf.includes(searchAluno))).sort((a, b) => {
+    if (sortAlunos === 'vencimento') {
+      const diaA = a.dia_vencimento ?? 32
+      const diaB = b.dia_vencimento ?? 32
+      return diaA - diaB || (a.nome || '').localeCompare(b.nome || '')
+    }
+    return (a.nome || '').localeCompare(b.nome || '')
+  })
   const professoresFiltrados = professoresLista.filter(p => (p.nome || '').toLowerCase().includes(searchProfessor.toLowerCase()) || (p.email && p.email.toLowerCase().includes(searchProfessor.toLowerCase())))
   const alunosDisponiveis = alunos.filter(a => { const turma = turmas.find(t => t.id === modalMatricula.turmaId); if (!turma) return true; return !turma.matriculas?.some(m => m.aluno_id === a.id) })
   const aulasDaTurma = aulas.filter(a => a.turma_id === diarioTurmaId)
@@ -920,6 +963,14 @@ function App() {
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400" />
                             <input type="text" placeholder="Buscar por nome, email ou CPF..." value={searchAluno} onChange={(e) => setSearchAluno(e.target.value)} className="w-full pl-10 pr-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 text-sm sm:text-base" />
                           </div>
+                          <div className="flex items-center justify-between mt-3">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-surface-500">Ordenar:</span>
+                              <button onClick={() => setSortAlunos('nome')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${sortAlunos === 'nome' ? 'bg-accent-600 text-white' : 'bg-surface-100 text-surface-600 hover:bg-surface-200'}`}>Nome</button>
+                              <button onClick={() => setSortAlunos('vencimento')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${sortAlunos === 'vencimento' ? 'bg-accent-600 text-white' : 'bg-surface-100 text-surface-600 hover:bg-surface-200'}`}>Vencimento</button>
+                            </div>
+                            <span className="text-xs text-surface-400">{alunosFiltrados.length} aluno{alunosFiltrados.length !== 1 ? 's' : ''}</span>
+                          </div>
                         </div>
                         <div className="sm:hidden divide-y divide-surface-100">
                           {alunosFiltrados.map(aluno => (
@@ -1193,18 +1244,45 @@ function App() {
           {/* Modal Aluno */}
           <Modal isOpen={modalAluno.open} onClose={() => setModalAluno({ open: false, data: null })} title={modalAluno.data ? 'Editar Aluno' : 'Novo Aluno'} size="xl">
             <div>
-              <div className="flex gap-1 p-1 bg-surface-100 rounded-xl mb-4 sm:mb-6 overflow-x-auto">
-                {[{ id: 'pessoais', icon: User, label: 'Pessoais' }, { id: 'pedagogico', icon: GraduationCap, label: 'Pedagógico' }, { id: 'financeiro', icon: DollarSign, label: 'Financeiro' }].map(tab => (
-                  <button key={tab.id} onClick={() => setAlunoTab(tab.id)} className={`flex-1 flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg font-medium transition-all text-xs sm:text-sm whitespace-nowrap ${alunoTab === tab.id ? 'bg-white text-surface-900 shadow-sm' : 'text-surface-600 hover:text-surface-900'}`}>
-                    <tab.icon className="w-4 h-4" />{tab.label}
-                  </button>
-                ))}
-              </div>
-              {alunoTab === 'pessoais' && (
+              {/* === MODO EDIÇÃO: abas livres === */}
+              {modalAluno.data ? (
+                <>
+                  <div className="flex gap-1 p-1 bg-surface-100 rounded-xl mb-4 sm:mb-6 overflow-x-auto">
+                    {[{ id: 'pessoais', icon: User, label: 'Pessoais' }, { id: 'pedagogico', icon: GraduationCap, label: 'Pedagógico' }, { id: 'financeiro', icon: DollarSign, label: 'Financeiro' }].map(tab => (
+                      <button key={tab.id} onClick={() => setAlunoTab(tab.id)} className={`flex-1 flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg font-medium transition-all text-xs sm:text-sm whitespace-nowrap ${alunoTab === tab.id ? 'bg-white text-surface-900 shadow-sm' : 'text-surface-600 hover:text-surface-900'}`}>
+                        <tab.icon className="w-4 h-4" />{tab.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                /* === MODO WIZARD: barra de progresso === */
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-2">
+                    {[{ step: 1, label: 'Pessoais', icon: User }, { step: 2, label: 'Pedagógico', icon: GraduationCap }, { step: 3, label: 'Financeiro', icon: DollarSign }, { step: 4, label: 'Turma', icon: BookOpen }].map((s, idx) => (
+                      <div key={s.step} className="flex items-center flex-1">
+                        <div className="flex flex-col items-center">
+                          <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all ${wizardStep === s.step ? 'bg-accent-600 text-white ring-4 ring-accent-100' : wizardStep > s.step ? 'bg-emerald-500 text-white' : 'bg-surface-200 text-surface-500'}`}>
+                            {wizardStep > s.step ? <Check className="w-4 h-4" /> : <s.icon className="w-4 h-4" />}
+                          </div>
+                          <span className={`text-xs mt-1 font-medium hidden sm:block ${wizardStep === s.step ? 'text-accent-600' : wizardStep > s.step ? 'text-emerald-600' : 'text-surface-400'}`}>{s.label}</span>
+                        </div>
+                        {idx < 3 && <div className={`flex-1 h-0.5 mx-2 rounded ${wizardStep > s.step ? 'bg-emerald-400' : 'bg-surface-200'}`} />}
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-surface-500 text-center sm:hidden">
+                    Etapa {wizardStep}/4: {['Dados Pessoais', 'Pedagógico', 'Financeiro', 'Turma e Confirmação'][wizardStep - 1]}
+                  </p>
+                </div>
+              )}
+
+              {/* === CONTEÚDO DAS ETAPAS (compartilhado entre wizard e edição) === */}
+              {(modalAluno.data ? alunoTab === 'pessoais' : wizardStep === 1) && (
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="sm:col-span-2">
-                      <label className="block text-sm font-medium text-surface-700 mb-1">Nome Completo</label>
+                      <label className="block text-sm font-medium text-surface-700 mb-1">Nome Completo *</label>
                       <input type="text" value={formAluno.nome} onChange={(e) => setFormAluno({ ...formAluno, nome: e.target.value })} placeholder="Nome do aluno" className="w-full px-4 py-2.5 border border-surface-200 rounded-xl focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 text-sm" />
                     </div>
                     <div>
@@ -1288,7 +1366,7 @@ function App() {
                   </div>
                 </div>
               )}
-              {alunoTab === 'pedagogico' && (
+              {(modalAluno.data ? alunoTab === 'pedagogico' : wizardStep === 2) && (
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
@@ -1315,7 +1393,7 @@ function App() {
                   </div>
                 </div>
               )}
-              {alunoTab === 'financeiro' && (
+              {(modalAluno.data ? alunoTab === 'financeiro' : wizardStep === 3) && (
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
@@ -1352,10 +1430,74 @@ function App() {
                   )}
                 </div>
               )}
-              <div className="flex gap-3 pt-6 mt-6 border-t border-surface-100">
-                <button onClick={() => setModalAluno({ open: false, data: null })} className="flex-1 px-4 py-2.5 border border-surface-200 rounded-xl font-medium text-surface-700 hover:bg-surface-50 text-sm">Cancelar</button>
-                <button onClick={saveAluno} className="flex-1 px-4 py-2.5 bg-accent-600 text-white rounded-xl font-medium hover:bg-accent-700 text-sm">{modalAluno.data ? 'Salvar' : 'Cadastrar'}</button>
-              </div>
+
+              {/* === ETAPA 4 DO WIZARD: Turma + Confirmação === */}
+              {!modalAluno.data && wizardStep === 4 && (
+                <div className="space-y-6">
+                  <div>
+                    <h4 className="font-medium text-surface-900 mb-3 flex items-center gap-2 text-sm"><BookOpen className="w-4 h-4" />Matricular em uma turma <span className="text-surface-400 font-normal">(opcional)</span></h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+                      {turmas.map(t => (
+                        <button key={t.id} type="button" onClick={() => setWizTurmaId(wizTurmaId === t.id ? null : t.id)} className={`text-left p-3 rounded-xl border-2 transition-all text-sm ${wizTurmaId === t.id ? 'border-accent-500 bg-accent-50' : 'border-surface-200 hover:border-surface-300'}`}>
+                          <p className="font-medium text-surface-900">{t.nome}</p>
+                          <p className="text-xs text-surface-500 mt-0.5">{t.idioma} {t.horario ? `- ${t.horario}` : ''}</p>
+                        </button>
+                      ))}
+                    </div>
+                    {turmas.length === 0 && <p className="text-sm text-surface-500 text-center py-4">Nenhuma turma cadastrada</p>}
+                  </div>
+                  <div className="p-4 bg-surface-50 rounded-xl">
+                    <h4 className="font-medium text-surface-900 mb-3 text-sm">Resumo do Cadastro</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                      <div className="space-y-1">
+                        <p className="font-medium text-surface-700">Dados Pessoais</p>
+                        <p className="text-surface-600">{formAluno.nome || 'Sem nome'}</p>
+                        {formAluno.email && <p className="text-surface-500 text-xs">{formAluno.email}</p>}
+                        {formAluno.telefone && <p className="text-surface-500 text-xs">{formAluno.telefone}</p>}
+                        {formAluno.cidade && <p className="text-surface-500 text-xs">{formAluno.cidade}/{formAluno.estado}</p>}
+                      </div>
+                      <div className="space-y-1">
+                        <p className="font-medium text-surface-700">Financeiro</p>
+                        {formAluno.valor_mensalidade ? (
+                          <>
+                            <p className="text-surface-600">{formatCurrency(formAluno.valor_mensalidade)}/mês</p>
+                            <p className="text-surface-500 text-xs">Vencimento dia {formAluno.dia_vencimento || '-'} - {formAluno.forma_pagamento}</p>
+                          </>
+                        ) : <p className="text-surface-500 text-xs">Não configurado</p>}
+                      </div>
+                      {wizTurmaId && (
+                        <div className="sm:col-span-2 pt-2 border-t border-surface-200">
+                          <p className="font-medium text-surface-700">Turma selecionada</p>
+                          <p className="text-accent-600">{turmas.find(t => t.id === wizTurmaId)?.nome}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* === FOOTER: botões de ação === */}
+              {modalAluno.data ? (
+                /* Edição: Cancelar + Salvar */
+                <div className="flex gap-3 pt-6 mt-6 border-t border-surface-100">
+                  <button onClick={() => setModalAluno({ open: false, data: null })} className="flex-1 px-4 py-2.5 border border-surface-200 rounded-xl font-medium text-surface-700 hover:bg-surface-50 text-sm">Cancelar</button>
+                  <button onClick={saveAluno} className="flex-1 px-4 py-2.5 bg-accent-600 text-white rounded-xl font-medium hover:bg-accent-700 text-sm">Salvar</button>
+                </div>
+              ) : (
+                /* Wizard: Voltar + Próximo/Cadastrar */
+                <div className="flex gap-3 pt-6 mt-6 border-t border-surface-100">
+                  {wizardStep > 1 ? (
+                    <button onClick={() => setWizardStep(wizardStep - 1)} className="flex-1 px-4 py-2.5 border border-surface-200 rounded-xl font-medium text-surface-700 hover:bg-surface-50 text-sm flex items-center justify-center gap-2"><ChevronRight className="w-4 h-4 rotate-180" />Voltar</button>
+                  ) : (
+                    <button onClick={() => setModalAluno({ open: false, data: null })} className="flex-1 px-4 py-2.5 border border-surface-200 rounded-xl font-medium text-surface-700 hover:bg-surface-50 text-sm">Cancelar</button>
+                  )}
+                  {wizardStep < 4 ? (
+                    <button onClick={() => setWizardStep(wizardStep + 1)} disabled={wizardStep === 1 && !formAluno.nome.trim()} className="flex-1 px-4 py-2.5 bg-accent-600 text-white rounded-xl font-medium hover:bg-accent-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center justify-center gap-2">Próximo<ChevronRight className="w-4 h-4" /></button>
+                  ) : (
+                    <button onClick={saveAlunoWizard} className="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 text-sm flex items-center justify-center gap-2"><Check className="w-4 h-4" />{wizTurmaId ? 'Cadastrar e Matricular' : 'Cadastrar Aluno'}</button>
+                  )}
+                </div>
+              )}
             </div>
           </Modal>
 
@@ -1479,8 +1621,37 @@ function App() {
 
           {/* Modal Detalhe Aluno */}
           <Modal isOpen={modalDetalheAluno.open} onClose={() => setModalDetalheAluno({ open: false, aluno: null })} title={modalDetalheAluno.aluno?.nome || 'Aluno'} size="lg">
-            {modalDetalheAluno.aluno && (
+            {modalDetalheAluno.aluno && (() => {
+              const onboarding = calcularOnboarding(modalDetalheAluno.aluno)
+              const completos = onboarding.filter(i => i.completo).length
+              const total = onboarding.length
+              const porcentagem = Math.round((completos / total) * 100)
+              return (
               <div className="space-y-6">
+                {/* Checklist de Onboarding */}
+                <div className={`p-4 rounded-xl border-2 ${completos === total ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-medium text-sm flex items-center gap-2">
+                      <ClipboardList className="w-4 h-4" />
+                      Onboarding
+                    </h4>
+                    <span className={`badge text-xs ${completos === total ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                      {completos === total ? 'Completo' : `${completos}/${total}`}
+                    </span>
+                  </div>
+                  <div className="w-full bg-surface-200 rounded-full h-2 mb-3">
+                    <div className={`h-2 rounded-full transition-all ${completos === total ? 'bg-emerald-500' : 'bg-amber-500'}`} style={{ width: `${porcentagem}%` }} />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    {onboarding.map((item, idx) => (
+                      <div key={idx} className="flex items-center gap-2 text-xs">
+                        {item.completo ? <Check className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />}
+                        <span className={item.completo ? 'text-emerald-700' : 'text-amber-700'}>{item.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="flex items-center gap-4">
                   <div className="w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-br from-brand-400 to-accent-400 rounded-full flex items-center justify-center text-white text-xl sm:text-2xl font-bold">{(modalDetalheAluno.aluno.nome || '?').charAt(0).toUpperCase()}</div>
                   <div>
@@ -1542,7 +1713,7 @@ function App() {
                   </div>
                 )}
               </div>
-            )}
+              )})()}
           </Modal>
 
           {/* Modal Alterar Senha */}

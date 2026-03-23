@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from supabase import create_client, Client
 import json
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 
 load_dotenv()
 
@@ -136,8 +136,6 @@ def get_current_date_context():
 Data atual: {today.strftime('%d/%m/%Y')} ({today.strftime('%A')})
 Semana atual: de {(today - timedelta(days=today.weekday())).strftime('%d/%m')} a {(today + timedelta(days=6-today.weekday())).strftime('%d/%m')}
 """
-
-from datetime import timedelta
 
 def execute_safe_query(sql: str) -> List[Dict[str, Any]]:
     """
