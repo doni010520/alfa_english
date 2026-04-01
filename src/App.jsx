@@ -813,6 +813,7 @@ function App() {
   const [coraStatus, setCoraStatus] = useState(null)
   const [cobrancas, setCobrancas] = useState([])
   const [gerandoBoletos, setGerandoBoletos] = useState(false)
+  const [supervisorTurmaIds, setSupervisorTurmaIds] = useState([])
 
   const [modalTurma, setModalTurma] = useState({ open: false, data: null })
   const [modalAluno, setModalAluno] = useState({ open: false, data: null })
@@ -840,7 +841,8 @@ function App() {
     if (savedUser) {
       const user = JSON.parse(savedUser)
       setUsuario(user)
-      if (user.perfil === 'professor') setActiveTab('diario')
+      if (user.perfil === 'professor' || user.perfil === 'supervisor') setActiveTab('diario')
+      if (user.perfil === 'supervisor') fetchSupervisorTurmas(user.id)
     }
     setCheckingAuth(false)
   }, [])
@@ -849,10 +851,22 @@ function App() {
 
   useEffect(() => { setSidebarOpen(false) }, [activeTab])
 
+  async function fetchSupervisorTurmas(userId) {
+    try {
+      const { data, error } = await supabase.from('supervisor_turmas').select('turma_id').eq('usuario_id', userId)
+      if (error) throw error
+      setSupervisorTurmaIds((data || []).map(r => r.turma_id))
+    } catch (err) {
+      console.error('Erro ao carregar turmas do supervisor:', err)
+      setSupervisorTurmaIds([])
+    }
+  }
+
   function handleLogin(user) {
     localStorage.setItem('edulingua_user', JSON.stringify(user))
     setUsuario(user)
-    if (user.perfil === 'professor') setActiveTab('diario')
+    if (user.perfil === 'professor' || user.perfil === 'supervisor') setActiveTab('diario')
+    if (user.perfil === 'supervisor') fetchSupervisorTurmas(user.id)
   }
 
   function handleLogout() {
@@ -862,6 +876,8 @@ function App() {
     setAlunos([])
     setUsuarios([])
     setAulas([])
+    setSupervisorTurmaIds([])
+    setActiveTab('dashboard')
   }
 
   async function loadData() {
@@ -901,7 +917,11 @@ function App() {
 
   function showToast(message, type = 'info') { setToast({ message, type }) }
 
-  const minhasTurmas = usuario?.perfil === 'professor' ? turmas.filter(t => t.professor_id === usuario.id) : turmas
+  const minhasTurmas = usuario?.perfil === 'professor'
+    ? turmas.filter(t => t.professor_id === usuario.id)
+    : usuario?.perfil === 'supervisor'
+      ? turmas.filter(t => supervisorTurmaIds.includes(t.id))
+      : turmas
   const usuariosParaDropdown = usuarios
   const professoresLista = usuarios.filter(u => u.perfil === 'professor')
 
@@ -1180,18 +1200,20 @@ function App() {
 
   function formatCurrency(value) { if (!value) return '-'; return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value) }
 
- const menuItems = usuario?.perfil === 'professor' 
+ const menuItems = usuario?.perfil === 'professor'
     ? [{ id: 'diario', icon: ClipboardList, label: 'Diário de Classe' }]
-    : [
-        { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-        { id: 'turmas', icon: BookOpen, label: 'Turmas' },
-        { id: 'alunos', icon: Users, label: 'Alunos' },
-        { id: 'professores', icon: GraduationCap, label: 'Professores' },
-        { id: 'diario', icon: ClipboardList, label: 'Diário de Classe' },
-        { id: 'financeiro', icon: DollarSign, label: 'Financeiro' },
-        { id: 'whatsapp', icon: MessageCircle, label: 'WhatsApp' },
-        { id: 'assistente', icon: Bot, label: 'Assistente IA' },
-      ]
+    : usuario?.perfil === 'supervisor'
+      ? [{ id: 'diario', icon: ClipboardList, label: 'Minhas Turmas' }]
+      : [
+          { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+          { id: 'turmas', icon: BookOpen, label: 'Turmas' },
+          { id: 'alunos', icon: Users, label: 'Alunos' },
+          { id: 'professores', icon: GraduationCap, label: 'Professores' },
+          { id: 'diario', icon: ClipboardList, label: 'Diário de Classe' },
+          { id: 'financeiro', icon: DollarSign, label: 'Financeiro' },
+          { id: 'whatsapp', icon: MessageCircle, label: 'WhatsApp' },
+          { id: 'assistente', icon: Bot, label: 'Assistente IA' },
+        ]
 
   return (
     <>
@@ -1233,7 +1255,7 @@ function App() {
                     </div>
                     <div>
                       <h1 className="font-display font-bold text-surface-900">EduLingua</h1>
-                      <p className="text-xs text-surface-500">{usuario?.perfil === 'professor' ? 'Área do Professor' : 'Gestão de Turmas'}</p>
+                      <p className="text-xs text-surface-500">{usuario?.perfil === 'professor' ? '\u00c1rea do Professor' : usuario?.perfil === 'supervisor' ? '\u00c1rea do Supervisor' : 'Gest\u00e3o de Turmas'}</p>
                     </div>
                   </div>
                   <button onClick={() => setSidebarOpen(false)} className="p-2 rounded-lg hover:bg-surface-100">
@@ -1278,7 +1300,7 @@ function App() {
                   </div>
                   <div>
                     <h1 className="font-display font-bold text-surface-900">EduLingua</h1>
-                    <p className="text-xs text-surface-500">{usuario?.perfil === 'professor' ? 'Área do Professor' : 'Gestão de Turmas'}</p>
+                    <p className="text-xs text-surface-500">{usuario?.perfil === 'professor' ? '\u00c1rea do Professor' : usuario?.perfil === 'supervisor' ? '\u00c1rea do Supervisor' : 'Gest\u00e3o de Turmas'}</p>
                   </div>
                 </div>
                 <ThemeToggle />
@@ -1685,8 +1707,8 @@ function App() {
                   {activeTab === 'diario' && (
                     <div className="animate-fade-in">
                       <div className="mb-6 sm:mb-8">
-                        <h2 className="text-2xl sm:text-3xl font-display font-bold text-surface-900 mb-1 sm:mb-2">Diário de Classe</h2>
-                        <p className="text-surface-600 text-sm sm:text-base">Registre aulas e controle presença</p>
+                        <h2 className="text-2xl sm:text-3xl font-display font-bold text-surface-900 mb-1 sm:mb-2">{usuario?.perfil === 'supervisor' ? 'Minhas Turmas' : 'Diário de Classe'}</h2>
+                        <p className="text-surface-600 text-sm sm:text-base">{usuario?.perfil === 'supervisor' ? 'Acompanhe conteúdo, feedback e frequência' : 'Registre aulas e controle presença'}</p>
                       </div>
                       <div className="bg-white rounded-xl sm:rounded-2xl shadow-card p-4 sm:p-6 mb-4 sm:mb-6">
                         <label className="block text-sm font-medium text-surface-700 mb-2">Selecione a Turma</label>
@@ -1702,9 +1724,11 @@ function App() {
                               <h3 className="font-display font-semibold text-surface-900">{turmaSelecionada.nome}</h3>
                               <p className="text-xs sm:text-sm text-surface-500">{turmaSelecionada.matriculas?.length || 0} alunos{turmaSelecionada.livro && ` • ${turmaSelecionada.livro}`}</p>
                             </div>
-                            <button onClick={() => openNovaAula(turmaSelecionada)} className="flex items-center justify-center gap-2 px-4 py-2 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 text-sm">
-                              <Plus className="w-4 h-4" />Registrar Aula
-                            </button>
+                            {usuario?.perfil !== 'supervisor' && (
+                              <button onClick={() => openNovaAula(turmaSelecionada)} className="flex items-center justify-center gap-2 px-4 py-2 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 text-sm">
+                                <Plus className="w-4 h-4" />Registrar Aula
+                              </button>
+                            )}
                           </div>
                           <div className="sm:hidden divide-y divide-surface-100">
                             {aulasDaTurma.map(aula => {
@@ -1722,10 +1746,18 @@ function App() {
                                     </div>
                                     <div className="flex items-center gap-1 text-sm"><UserCheck className="w-4 h-4 text-emerald-500" /><span className="font-medium">{presentes}/{total}</span></div>
                                   </div>
-                                  <div className="flex items-center gap-2 pt-3 border-t border-surface-100">
-                                    <button onClick={() => openEditAula(aula, turmaSelecionada)} className="flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-lg bg-surface-50 text-surface-600 text-sm"><Edit2 className="w-4 h-4" />Editar</button>
-                                    <button onClick={() => deleteAula(aula.id)} className="p-2 rounded-lg hover:bg-red-50 text-red-500"><Trash2 className="w-4 h-4" /></button>
-                                  </div>
+                                  {usuario?.perfil !== 'supervisor' && (
+                                    <div className="flex items-center gap-2 pt-3 border-t border-surface-100">
+                                      <button onClick={() => openEditAula(aula, turmaSelecionada)} className="flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-lg bg-surface-50 text-surface-600 text-sm"><Edit2 className="w-4 h-4" />Editar</button>
+                                      <button onClick={() => deleteAula(aula.id)} className="p-2 rounded-lg hover:bg-red-50 text-red-500"><Trash2 className="w-4 h-4" /></button>
+                                    </div>
+                                  )}
+                                  {usuario?.perfil === 'supervisor' && (
+                                    <div className="pt-3 border-t border-surface-100 space-y-1 text-sm text-surface-600">
+                                      {aula.conteudo && <p><span className="font-medium">Conteudo:</span> {aula.conteudo}</p>}
+                                      {aula.observacoes && <p><span className="font-medium">Feedback:</span> {aula.observacoes}</p>}
+                                    </div>
+                                  )}
                                 </div>
                               )
                             })}
@@ -1735,21 +1767,31 @@ function App() {
                               const presentes = aula.presencas?.filter(p => p.presente).length || 0
                               const total = aula.presencas?.length || 0
                               return (
-                                <div key={aula.id} className="px-6 py-4 flex items-center justify-between table-row-hover">
-                                  <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 bg-surface-100 rounded-xl flex items-center justify-center"><ClipboardList className="w-6 h-6 text-surface-600" /></div>
-                                    <div>
-                                      <p className="font-semibold text-surface-900">{new Date(aula.data + 'T12:00:00').toLocaleDateString('pt-BR')}</p>
-                                      <p className="text-sm text-surface-500">{aula.unidade_livro || 'Sem unidade'}</p>
+                                <div key={aula.id} className="px-6 py-4 table-row-hover">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-4">
+                                      <div className="w-12 h-12 bg-surface-100 rounded-xl flex items-center justify-center"><ClipboardList className="w-6 h-6 text-surface-600" /></div>
+                                      <div>
+                                        <p className="font-semibold text-surface-900">{new Date(aula.data + 'T12:00:00').toLocaleDateString('pt-BR')}</p>
+                                        <p className="text-sm text-surface-500">{aula.unidade_livro || 'Sem unidade'}</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                      <div className="flex items-center gap-2"><UserCheck className="w-4 h-4 text-emerald-500" /><span className="text-sm font-medium">{presentes}/{total}</span></div>
+                                      {usuario?.perfil !== 'supervisor' && (
+                                        <div className="flex items-center gap-1">
+                                          <button onClick={() => openEditAula(aula, turmaSelecionada)} className="p-2 rounded-lg hover:bg-surface-100 text-surface-500"><Edit2 className="w-5 h-5" /></button>
+                                          <button onClick={() => deleteAula(aula.id)} className="p-2 rounded-lg hover:bg-red-50 text-red-500"><Trash2 className="w-5 h-5" /></button>
+                                        </div>
+                                      )}
                                     </div>
                                   </div>
-                                  <div className="flex items-center gap-4">
-                                    <div className="flex items-center gap-2"><UserCheck className="w-4 h-4 text-emerald-500" /><span className="text-sm font-medium">{presentes}/{total}</span></div>
-                                    <div className="flex items-center gap-1">
-                                      <button onClick={() => openEditAula(aula, turmaSelecionada)} className="p-2 rounded-lg hover:bg-surface-100 text-surface-500"><Edit2 className="w-5 h-5" /></button>
-                                      <button onClick={() => deleteAula(aula.id)} className="p-2 rounded-lg hover:bg-red-50 text-red-500"><Trash2 className="w-5 h-5" /></button>
+                                  {usuario?.perfil === 'supervisor' && (aula.conteudo || aula.observacoes) && (
+                                    <div className="ml-16 mt-2 space-y-1 text-sm text-surface-600">
+                                      {aula.conteudo && <p><span className="font-medium">Conteudo:</span> {aula.conteudo}</p>}
+                                      {aula.observacoes && <p><span className="font-medium">Feedback:</span> {aula.observacoes}</p>}
                                     </div>
-                                  </div>
+                                  )}
                                 </div>
                               )
                             })}
