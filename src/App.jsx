@@ -5,7 +5,8 @@ import {
   ChevronRight, AlertCircle, Check, Loader2, LayoutDashboard, User, DollarSign, MapPin,
   FileText, Eye, BookMarked, LogIn, LogOut, Lock, UserCheck, UserX, ClipboardList, Save, Mail, Menu,
   Bot, Send, Sparkles, Moon, Sun, MessageCircle, Phone, Wifi, WifiOff, RefreshCw,
-  Paperclip, Mic, MicOff, Smile, Image, File, Video, Reply, CheckCheck, Download, Volume2, VolumeX, Square
+  Paperclip, Mic, MicOff, Smile, Image, File, Video, Reply, CheckCheck, Download, Volume2, VolumeX, Square,
+  ChevronDown, CheckCircle2, XCircle
 } from 'lucide-react'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'SUA_URL_SUPABASE'
@@ -814,6 +815,7 @@ function App() {
   const [cobrancas, setCobrancas] = useState([])
   const [gerandoBoletos, setGerandoBoletos] = useState(false)
   const [supervisorTurmaIds, setSupervisorTurmaIds] = useState([])
+  const [aulaExpandidaId, setAulaExpandidaId] = useState(null)
 
   const [modalTurma, setModalTurma] = useState({ open: false, data: null })
   const [modalAluno, setModalAluno] = useState({ open: false, data: null })
@@ -1734,9 +1736,11 @@ function App() {
                             {aulasDaTurma.map(aula => {
                               const presentes = aula.presencas?.filter(p => p.presente).length || 0
                               const total = aula.presencas?.length || 0
+                              const expandida = aulaExpandidaId === aula.id
+                              const isSupervisor = usuario?.perfil === 'supervisor'
                               return (
                                 <div key={aula.id} className="p-4">
-                                  <div className="flex items-center justify-between mb-2">
+                                  <div className={`flex items-center justify-between mb-2 ${isSupervisor ? 'cursor-pointer' : ''}`} onClick={() => isSupervisor && setAulaExpandidaId(expandida ? null : aula.id)}>
                                     <div className="flex items-center gap-3">
                                       <div className="w-10 h-10 bg-surface-100 rounded-xl flex items-center justify-center"><ClipboardList className="w-5 h-5 text-surface-600" /></div>
                                       <div>
@@ -1744,18 +1748,35 @@ function App() {
                                         <p className="text-xs text-surface-500">{aula.unidade_livro || 'Sem unidade'}</p>
                                       </div>
                                     </div>
-                                    <div className="flex items-center gap-1 text-sm"><UserCheck className="w-4 h-4 text-emerald-500" /><span className="font-medium">{presentes}/{total}</span></div>
+                                    <div className="flex items-center gap-2 text-sm">
+                                      <UserCheck className="w-4 h-4 text-emerald-500" /><span className="font-medium">{presentes}/{total}</span>
+                                      {isSupervisor && <ChevronDown className={`w-4 h-4 text-surface-400 transition-transform ${expandida ? 'rotate-180' : ''}`} />}
+                                    </div>
                                   </div>
-                                  {usuario?.perfil !== 'supervisor' && (
+                                  {!isSupervisor && (
                                     <div className="flex items-center gap-2 pt-3 border-t border-surface-100">
                                       <button onClick={() => openEditAula(aula, turmaSelecionada)} className="flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-lg bg-surface-50 text-surface-600 text-sm"><Edit2 className="w-4 h-4" />Editar</button>
                                       <button onClick={() => deleteAula(aula.id)} className="p-2 rounded-lg hover:bg-red-50 text-red-500"><Trash2 className="w-4 h-4" /></button>
                                     </div>
                                   )}
-                                  {usuario?.perfil === 'supervisor' && (
-                                    <div className="pt-3 border-t border-surface-100 space-y-1 text-sm text-surface-600">
-                                      {aula.conteudo && <p><span className="font-medium">Conteudo:</span> {aula.conteudo}</p>}
-                                      {aula.observacoes && <p><span className="font-medium">Feedback:</span> {aula.observacoes}</p>}
+                                  {isSupervisor && expandida && (
+                                    <div className="pt-3 border-t border-surface-100 space-y-3 text-sm">
+                                      {aula.conteudo && <p className="text-surface-600"><span className="font-medium text-surface-900">Conteúdo:</span> {aula.conteudo}</p>}
+                                      {aula.observacoes && <p className="text-surface-600"><span className="font-medium text-surface-900">Feedback:</span> {aula.observacoes}</p>}
+                                      <div>
+                                        <p className="font-medium text-surface-900 mb-2">Frequência ({presentes}/{total}):</p>
+                                        <div className="space-y-1">
+                                          {aula.presencas?.length > 0 ? aula.presencas.map(p => {
+                                            const aluno = alunos.find(a => a.id === p.aluno_id)
+                                            return (
+                                              <div key={p.aluno_id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-surface-50">
+                                                <span className="text-surface-700">{aluno?.nome || 'Aluno desconhecido'}</span>
+                                                {p.presente ? <span className="badge bg-emerald-100 text-emerald-700 text-xs flex items-center gap-1"><CheckCircle2 className="w-3 h-3" />Presente</span> : <span className="badge bg-red-100 text-red-700 text-xs flex items-center gap-1"><XCircle className="w-3 h-3" />Falta</span>}
+                                              </div>
+                                            )
+                                          }) : <p className="text-surface-500 italic">Sem registros de presença</p>}
+                                        </div>
+                                      </div>
                                     </div>
                                   )}
                                 </div>
@@ -1766,9 +1787,11 @@ function App() {
                             {aulasDaTurma.map(aula => {
                               const presentes = aula.presencas?.filter(p => p.presente).length || 0
                               const total = aula.presencas?.length || 0
+                              const expandida = aulaExpandidaId === aula.id
+                              const isSupervisor = usuario?.perfil === 'supervisor'
                               return (
                                 <div key={aula.id} className="px-6 py-4 table-row-hover">
-                                  <div className="flex items-center justify-between">
+                                  <div className={`flex items-center justify-between ${isSupervisor ? 'cursor-pointer' : ''}`} onClick={() => isSupervisor && setAulaExpandidaId(expandida ? null : aula.id)}>
                                     <div className="flex items-center gap-4">
                                       <div className="w-12 h-12 bg-surface-100 rounded-xl flex items-center justify-center"><ClipboardList className="w-6 h-6 text-surface-600" /></div>
                                       <div>
@@ -1778,18 +1801,33 @@ function App() {
                                     </div>
                                     <div className="flex items-center gap-4">
                                       <div className="flex items-center gap-2"><UserCheck className="w-4 h-4 text-emerald-500" /><span className="text-sm font-medium">{presentes}/{total}</span></div>
-                                      {usuario?.perfil !== 'supervisor' && (
+                                      {!isSupervisor && (
                                         <div className="flex items-center gap-1">
-                                          <button onClick={() => openEditAula(aula, turmaSelecionada)} className="p-2 rounded-lg hover:bg-surface-100 text-surface-500"><Edit2 className="w-5 h-5" /></button>
-                                          <button onClick={() => deleteAula(aula.id)} className="p-2 rounded-lg hover:bg-red-50 text-red-500"><Trash2 className="w-5 h-5" /></button>
+                                          <button onClick={(e) => { e.stopPropagation(); openEditAula(aula, turmaSelecionada) }} className="p-2 rounded-lg hover:bg-surface-100 text-surface-500"><Edit2 className="w-5 h-5" /></button>
+                                          <button onClick={(e) => { e.stopPropagation(); deleteAula(aula.id) }} className="p-2 rounded-lg hover:bg-red-50 text-red-500"><Trash2 className="w-5 h-5" /></button>
                                         </div>
                                       )}
+                                      {isSupervisor && <ChevronDown className={`w-5 h-5 text-surface-400 transition-transform ${expandida ? 'rotate-180' : ''}`} />}
                                     </div>
                                   </div>
-                                  {usuario?.perfil === 'supervisor' && (aula.conteudo || aula.observacoes) && (
-                                    <div className="ml-16 mt-2 space-y-1 text-sm text-surface-600">
-                                      {aula.conteudo && <p><span className="font-medium">Conteudo:</span> {aula.conteudo}</p>}
-                                      {aula.observacoes && <p><span className="font-medium">Feedback:</span> {aula.observacoes}</p>}
+                                  {isSupervisor && expandida && (
+                                    <div className="ml-16 mt-3 space-y-3 text-sm">
+                                      {aula.conteudo && <p className="text-surface-600"><span className="font-medium text-surface-900">Conteúdo:</span> {aula.conteudo}</p>}
+                                      {aula.observacoes && <p className="text-surface-600"><span className="font-medium text-surface-900">Feedback:</span> {aula.observacoes}</p>}
+                                      <div>
+                                        <p className="font-medium text-surface-900 mb-2">Frequência ({presentes}/{total}):</p>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                          {aula.presencas?.length > 0 ? aula.presencas.map(p => {
+                                            const aluno = alunos.find(a => a.id === p.aluno_id)
+                                            return (
+                                              <div key={p.aluno_id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-surface-50">
+                                                <span className="text-surface-700">{aluno?.nome || 'Aluno desconhecido'}</span>
+                                                {p.presente ? <span className="badge bg-emerald-100 text-emerald-700 text-xs flex items-center gap-1"><CheckCircle2 className="w-3 h-3" />Presente</span> : <span className="badge bg-red-100 text-red-700 text-xs flex items-center gap-1"><XCircle className="w-3 h-3" />Falta</span>}
+                                              </div>
+                                            )
+                                          }) : <p className="text-surface-500 italic">Sem registros de presença</p>}
+                                        </div>
+                                      </div>
                                     </div>
                                   )}
                                 </div>
