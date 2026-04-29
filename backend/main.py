@@ -50,9 +50,14 @@ class ChatMessage(BaseModel):
     role: str  # "user" ou "assistant"
     content: str
 
+class ChatUser(BaseModel):
+    id: Optional[str] = None
+    perfil: Optional[str] = None  # 'admin', 'professor', 'supervisor'
+
 class ChatRequest(BaseModel):
     message: str
     history: Optional[List[ChatMessage]] = []
+    user: Optional[ChatUser] = None
 
 class ChatResponse(BaseModel):
     response: str
@@ -401,36 +406,89 @@ TOOLS = [
 ]
 
 # ============================================
+# ESCOPO POR USUÁRIO (RBAC)
+# ============================================
+
+def compute_user_scope(user: Optional["ChatUser"]) -> Dict[str, Any]:
+    """
+    Retorna o escopo de dados que o usuário pode acessar.
+    - admin/None: sem restrição (allowed_turma_ids=None)
+    - supervisor: só as turmas vinculadas via supervisor_turmas
+    - professor: só as turmas onde ele é professor_id
+    """
+    if not user or not user.perfil or user.perfil == "admin":
+        return {"allowed_turma_ids": None, "perfil": "admin"}
+
+    if user.perfil == "supervisor" and user.id:
+        result = supabase.table("supervisor_turmas").select("turma_id").eq("usuario_id", user.id).execute()
+        ids = [r["turma_id"] for r in (result.data or [])]
+        return {"allowed_turma_ids": ids, "perfil": "supervisor"}
+
+    if user.perfil == "professor" and user.id:
+        result = supabase.table("turmas").select("id").eq("professor_id", user.id).execute()
+        ids = [r["id"] for r in (result.data or [])]
+        return {"allowed_turma_ids": ids, "perfil": "professor"}
+
+    # fallback: nega tudo
+    return {"allowed_turma_ids": [], "perfil": user.perfil}
+
+
+def _alunos_in_scope(scope: Dict[str, Any]) -> Optional[List[str]]:
+    """Lista de aluno_ids matriculados em turmas do escopo. None = sem restrição."""
+    allowed = scope.get("allowed_turma_ids")
+    if allowed is None:
+        return None
+    if not allowed:
+        return []
+    matriculas = supabase.table("matriculas").select("aluno_id").in_("turma_id", allowed).execute()
+    return list({m["aluno_id"] for m in (matriculas.data or [])})
+
+
+# ============================================
 # IMPLEMENTAÇÃO DAS FERRAMENTAS
 # ============================================
 
-def tool_consultar_turmas(idioma: str = None, professor_nome: str = None, nome_turma: str = None) -> List[Dict]:
+def tool_consultar_turmas(idioma: str = None, professor_nome: str = None, nome_turma: str = None, _scope: Dict = None) -> List[Dict]:
     """Consulta turmas com filtros"""
+    _scope = _scope or {}
     query = supabase.table("turmas").select("*, professor:usuarios!turmas_professor_id_fkey(id, nome, email)")
-    
+
+    allowed = _scope.get("allowed_turma_ids")
+    if allowed is not None:
+        if not allowed:
+            return []
+        query = query.in_("id", allowed)
+
     if idioma:
         query = query.eq("idioma", idioma)
     if nome_turma:
         query = query.ilike("nome", f"%{nome_turma}%")
-    
+
     result = query.execute()
     turmas = result.data if result.data else []
-    
+
     # Filtro por nome do professor (pós-query pois é relacionamento)
     if professor_nome:
         turmas = [t for t in turmas if t.get("professor") and professor_nome.lower() in t["professor"].get("nome", "").lower()]
-    
+
     # Adiciona contagem de alunos
     for turma in turmas:
         matriculas = supabase.table("matriculas").select("id", count="exact").eq("turma_id", turma["id"]).eq("status", "ativo").execute()
         turma["total_alunos"] = matriculas.count if matriculas.count else 0
-    
+
     return turmas
 
-def tool_consultar_alunos(nome: str = None, status_financeiro: str = None, status_pedagogico: str = None, usa_transporte: bool = None) -> List[Dict]:
+def tool_consultar_alunos(nome: str = None, status_financeiro: str = None, status_pedagogico: str = None, usa_transporte: bool = None, _scope: Dict = None) -> List[Dict]:
     """Consulta alunos com filtros"""
+    _scope = _scope or {}
     query = supabase.table("alunos").select("*")
-    
+
+    aluno_ids = _alunos_in_scope(_scope)
+    if aluno_ids is not None:
+        if not aluno_ids:
+            return []
+        query = query.in_("id", aluno_ids)
+
     if nome:
         query = query.ilike("nome", f"%{nome}%")
     if status_financeiro:
@@ -439,63 +497,85 @@ def tool_consultar_alunos(nome: str = None, status_financeiro: str = None, statu
         query = query.eq("status_pedagogico", status_pedagogico)
     if usa_transporte is not None:
         query = query.eq("usa_transporte", usa_transporte)
-    
+
     result = query.order("nome").execute()
     return result.data if result.data else []
 
-def tool_consultar_alunos_turma(turma_nome: str = None, turma_id: str = None) -> Dict:
+def tool_consultar_alunos_turma(turma_nome: str = None, turma_id: str = None, _scope: Dict = None) -> Dict:
     """Lista alunos de uma turma"""
+    _scope = _scope or {}
+    allowed = _scope.get("allowed_turma_ids")
+
     # Encontra a turma
     if turma_id:
+        if allowed is not None and turma_id not in allowed:
+            return {"erro": "Você não tem acesso a essa turma"}
         turma_result = supabase.table("turmas").select("*").eq("id", turma_id).single().execute()
     elif turma_nome:
-        turma_result = supabase.table("turmas").select("*").ilike("nome", f"%{turma_nome}%").execute()
+        q = supabase.table("turmas").select("*").ilike("nome", f"%{turma_nome}%")
+        if allowed is not None:
+            if not allowed:
+                return {"erro": "Você não tem turmas atribuídas"}
+            q = q.in_("id", allowed)
+        turma_result = q.execute()
         if turma_result.data:
             turma_result.data = turma_result.data[0]
         else:
-            return {"erro": f"Turma '{turma_nome}' não encontrada"}
+            return {"erro": f"Turma '{turma_nome}' não encontrada (ou fora do seu escopo)"}
     else:
         return {"erro": "Informe o nome ou ID da turma"}
-    
+
     if not turma_result.data:
         return {"erro": "Turma não encontrada"}
-    
+
     turma = turma_result.data
-    
+
     # Busca matrículas com dados do aluno
     matriculas = supabase.table("matriculas").select("*, aluno:alunos(*)").eq("turma_id", turma["id"]).eq("status", "ativo").execute()
-    
+
     alunos = [m["aluno"] for m in (matriculas.data or []) if m.get("aluno")]
-    
+
     return {
         "turma": turma,
         "total_alunos": len(alunos),
         "alunos": alunos
     }
 
-def tool_consultar_turmas_aluno(aluno_nome: str) -> Dict:
+def tool_consultar_turmas_aluno(aluno_nome: str, _scope: Dict = None) -> Dict:
     """Lista turmas de um aluno"""
+    _scope = _scope or {}
+    allowed = _scope.get("allowed_turma_ids")
+
     # Encontra o aluno
     aluno_result = supabase.table("alunos").select("*").ilike("nome", f"%{aluno_nome}%").execute()
-    
+
     if not aluno_result.data:
         return {"erro": f"Aluno '{aluno_nome}' não encontrado"}
-    
+
     aluno = aluno_result.data[0]
-    
+
     # Busca matrículas com dados da turma
     matriculas = supabase.table("matriculas").select("*, turma:turmas(*, professor:usuarios!turmas_professor_id_fkey(nome))").eq("aluno_id", aluno["id"]).eq("status", "ativo").execute()
-    
+
     turmas = [m["turma"] for m in (matriculas.data or []) if m.get("turma")]
-    
+
+    if allowed is not None:
+        turmas = [t for t in turmas if t.get("id") in allowed]
+
+    if allowed is not None and not turmas:
+        return {"erro": f"Aluno '{aluno_nome}' não está em turmas do seu escopo"}
+
     return {
         "aluno": aluno,
         "total_turmas": len(turmas),
         "turmas": turmas
     }
 
-def tool_consultar_faltas(aluno_nome: str = None, turma_nome: str = None, data_inicio: str = None, data_fim: str = None, apenas_faltas: bool = True) -> List[Dict]:
+def tool_consultar_faltas(aluno_nome: str = None, turma_nome: str = None, data_inicio: str = None, data_fim: str = None, apenas_faltas: bool = True, _scope: Dict = None) -> List[Dict]:
     """Consulta presenças/faltas"""
+    _scope = _scope or {}
+    allowed = _scope.get("allowed_turma_ids")
+
     # Se não informar datas, usa a semana atual
     if not data_inicio:
         today = datetime.now()
@@ -503,129 +583,195 @@ def tool_consultar_faltas(aluno_nome: str = None, turma_nome: str = None, data_i
     if not data_fim:
         today = datetime.now()
         data_fim = (today + timedelta(days=6-today.weekday())).strftime("%Y-%m-%d")
-    
+
     # Busca aulas no período
-    aulas_query = supabase.table("aulas").select("id, data, turma:turmas(id, nome)").gte("data", data_inicio).lte("data", data_fim)
-    
+    aulas_query = supabase.table("aulas").select("id, data, turma:turmas(id, nome), turma_id").gte("data", data_inicio).lte("data", data_fim)
+
+    if allowed is not None:
+        if not allowed:
+            return []
+        aulas_query = aulas_query.in_("turma_id", allowed)
+
     if turma_nome:
-        # Primeiro encontra a turma
-        turma = supabase.table("turmas").select("id").ilike("nome", f"%{turma_nome}%").execute()
+        turma_q = supabase.table("turmas").select("id").ilike("nome", f"%{turma_nome}%")
+        if allowed is not None:
+            turma_q = turma_q.in_("id", allowed)
+        turma = turma_q.execute()
         if turma.data:
             aulas_query = aulas_query.eq("turma_id", turma.data[0]["id"])
-    
+        else:
+            return []
+
     aulas = aulas_query.execute()
-    
+
     if not aulas.data:
         return []
-    
+
     aula_ids = [a["id"] for a in aulas.data]
-    
+
     # Busca presenças
     presencas_query = supabase.table("presencas").select("*, aluno:alunos(id, nome), aula:aulas(data, turma:turmas(nome))").in_("aula_id", aula_ids)
-    
+
     if apenas_faltas:
         presencas_query = presencas_query.eq("presente", False)
-    
+
     presencas = presencas_query.execute()
-    
+
     # Filtra por aluno se necessário
     resultado = presencas.data or []
     if aluno_nome:
         resultado = [p for p in resultado if p.get("aluno") and aluno_nome.lower() in p["aluno"].get("nome", "").lower()]
-    
+
     return resultado
 
-def tool_consultar_aulas(turma_nome: str = None, data_inicio: str = None, data_fim: str = None) -> List[Dict]:
+def tool_consultar_aulas(turma_nome: str = None, data_inicio: str = None, data_fim: str = None, _scope: Dict = None) -> List[Dict]:
     """Consulta aulas realizadas"""
+    _scope = _scope or {}
+    allowed = _scope.get("allowed_turma_ids")
+
     query = supabase.table("aulas").select("*, turma:turmas(nome, idioma)")
-    
+
+    if allowed is not None:
+        if not allowed:
+            return []
+        query = query.in_("turma_id", allowed)
+
     if turma_nome:
-        turma = supabase.table("turmas").select("id").ilike("nome", f"%{turma_nome}%").execute()
+        turma_q = supabase.table("turmas").select("id").ilike("nome", f"%{turma_nome}%")
+        if allowed is not None:
+            turma_q = turma_q.in_("id", allowed)
+        turma = turma_q.execute()
         if turma.data:
             query = query.eq("turma_id", turma.data[0]["id"])
-    
+        else:
+            return []
+
     if data_inicio:
         query = query.gte("data", data_inicio)
     if data_fim:
         query = query.lte("data", data_fim)
-    
+
     result = query.order("data", desc=True).limit(50).execute()
     return result.data if result.data else []
 
-def tool_consultar_professores(nome: str = None) -> List[Dict]:
+def tool_consultar_professores(nome: str = None, _scope: Dict = None) -> List[Dict]:
     """Lista professores com suas turmas"""
-    query = supabase.table("usuarios").select("*").eq("perfil", "professor").eq("ativo", True)
-    
+    _scope = _scope or {}
+    allowed = _scope.get("allowed_turma_ids")
+
+    # Se há escopo, só lista professores das turmas permitidas
+    if allowed is not None:
+        if not allowed:
+            return []
+        turmas_res = supabase.table("turmas").select("professor_id").in_("id", allowed).execute()
+        prof_ids = list({t["professor_id"] for t in (turmas_res.data or []) if t.get("professor_id")})
+        if not prof_ids:
+            return []
+        query = supabase.table("usuarios").select("*").in_("id", prof_ids).eq("ativo", True)
+    else:
+        query = supabase.table("usuarios").select("*").eq("perfil", "professor").eq("ativo", True)
+
     if nome:
         query = query.ilike("nome", f"%{nome}%")
-    
+
     professores = query.execute()
     resultado = []
-    
+
     for prof in (professores.data or []):
-        turmas = supabase.table("turmas").select("id, nome, idioma, horario").eq("professor_id", prof["id"]).execute()
+        t_query = supabase.table("turmas").select("id, nome, idioma, horario").eq("professor_id", prof["id"])
+        if allowed is not None:
+            t_query = t_query.in_("id", allowed)
+        turmas = t_query.execute()
         prof["turmas"] = turmas.data or []
         prof["total_turmas"] = len(prof["turmas"])
         resultado.append(prof)
-    
+
     return resultado
 
-def tool_estatisticas_gerais() -> Dict:
+def tool_estatisticas_gerais(_scope: Dict = None) -> Dict:
     """Retorna estatísticas gerais"""
+    _scope = _scope or {}
+    allowed = _scope.get("allowed_turma_ids")
     stats = {}
-    
+
+    # Modo restrito (supervisor): tudo escopado às turmas permitidas
+    if allowed is not None:
+        if not allowed:
+            return {"escopo": "restrito", "total_turmas": 0, "total_alunos": 0}
+
+        stats["escopo"] = "restrito (apenas suas turmas)"
+        stats["total_turmas"] = len(allowed)
+
+        aluno_ids = _alunos_in_scope(_scope) or []
+        stats["total_alunos"] = len(aluno_ids)
+
+        if aluno_ids:
+            ativos = supabase.table("alunos").select("id", count="exact").eq("status_pedagogico", "ativo").in_("id", aluno_ids).execute()
+            stats["alunos_ativos"] = ativos.count or 0
+            transporte = supabase.table("alunos").select("id", count="exact").eq("usa_transporte", True).in_("id", aluno_ids).execute()
+            stats["alunos_transporte"] = transporte.count or 0
+        return stats
+
     # Total de turmas
     turmas = supabase.table("turmas").select("id", count="exact").execute()
     stats["total_turmas"] = turmas.count or 0
-    
+
     # Total de alunos
     alunos = supabase.table("alunos").select("id", count="exact").execute()
     stats["total_alunos"] = alunos.count or 0
-    
+
     # Alunos por status pedagógico
     ativos = supabase.table("alunos").select("id", count="exact").eq("status_pedagogico", "ativo").execute()
     stats["alunos_ativos"] = ativos.count or 0
-    
+
     trancados = supabase.table("alunos").select("id", count="exact").eq("status_pedagogico", "trancado").execute()
     stats["alunos_trancados"] = trancados.count or 0
-    
+
     # Alunos por status financeiro
     em_dia = supabase.table("alunos").select("id", count="exact").eq("status_financeiro", "em_dia").execute()
     stats["alunos_em_dia"] = em_dia.count or 0
-    
+
     pendentes = supabase.table("alunos").select("id", count="exact").eq("status_financeiro", "pendente").execute()
     stats["alunos_pendentes"] = pendentes.count or 0
-    
+
     inadimplentes = supabase.table("alunos").select("id", count="exact").eq("status_financeiro", "inadimplente").execute()
     stats["alunos_inadimplentes"] = inadimplentes.count or 0
-    
+
     # Total de professores
     professores = supabase.table("usuarios").select("id", count="exact").eq("perfil", "professor").eq("ativo", True).execute()
     stats["total_professores"] = professores.count or 0
-    
+
     # Turmas por idioma
     turmas_ingles = supabase.table("turmas").select("id", count="exact").eq("idioma", "Inglês").execute()
     stats["turmas_ingles"] = turmas_ingles.count or 0
-    
+
     turmas_espanhol = supabase.table("turmas").select("id", count="exact").eq("idioma", "Espanhol").execute()
     stats["turmas_espanhol"] = turmas_espanhol.count or 0
-    
+
     turmas_frances = supabase.table("turmas").select("id", count="exact").eq("idioma", "Francês").execute()
     stats["turmas_frances"] = turmas_frances.count or 0
-    
+
     # Alunos que usam transporte
     transporte = supabase.table("alunos").select("id", count="exact").eq("usa_transporte", True).execute()
     stats["alunos_transporte"] = transporte.count or 0
-    
+
     return stats
 
-def tool_aniversariantes(mes: int = None) -> List[Dict]:
+def tool_aniversariantes(mes: int = None, _scope: Dict = None) -> List[Dict]:
     """Lista aniversariantes do mês"""
+    _scope = _scope or {}
     if mes is None:
         mes = datetime.now().month
-    
-    result = supabase.table("alunos").select("id, nome, aniversario_dia, aniversario_mes, telefone").eq("aniversario_mes", mes).eq("status_pedagogico", "ativo").order("aniversario_dia").execute()
-    
+
+    query = supabase.table("alunos").select("id, nome, aniversario_dia, aniversario_mes, telefone").eq("aniversario_mes", mes).eq("status_pedagogico", "ativo")
+
+    aluno_ids = _alunos_in_scope(_scope)
+    if aluno_ids is not None:
+        if not aluno_ids:
+            return []
+        query = query.in_("id", aluno_ids)
+
+    result = query.order("aniversario_dia").execute()
     return result.data if result.data else []
 
 # Mapeamento de ferramentas
@@ -645,7 +791,48 @@ TOOL_FUNCTIONS = {
 # ENDPOINT PRINCIPAL
 # ============================================
 
-SYSTEM_PROMPT = f"""Você é o assistente virtual da EduLingua, uma escola de idiomas. Seu papel é ajudar os administradores a consultar informações sobre turmas, alunos, professores, presenças e finanças.
+def build_system_prompt(scope: Dict[str, Any]) -> str:
+    """Constrói o system prompt baseado no escopo do usuário"""
+    perfil = scope.get("perfil", "admin")
+    allowed = scope.get("allowed_turma_ids")
+
+    if perfil == "supervisor":
+        # Busca nomes das turmas para contexto
+        turma_nomes = []
+        if allowed:
+            t = supabase.table("turmas").select("nome").in_("id", allowed).execute()
+            turma_nomes = [r["nome"] for r in (t.data or [])]
+        turmas_str = ", ".join(turma_nomes) if turma_nomes else "(nenhuma turma vinculada)"
+
+        return f"""Você é o assistente virtual da EduLingua, atendendo um SUPERVISOR de turmas.
+
+IMPORTANTE: Este usuário é supervisor e tem acesso APENAS às seguintes turmas: {turmas_str}.
+
+Todas as ferramentas já estão automaticamente filtradas para retornar somente dados dessas turmas. Você NÃO deve responder perguntas sobre:
+- Outras turmas da escola fora do escopo
+- Informações financeiras gerais (mensalidades, inadimplência, boletos)
+- Lista geral de alunos da escola
+- Estatísticas globais que não envolvam suas turmas
+
+Se o usuário pedir algo fora do escopo, responda educadamente que essa informação está fora da sua área de supervisão.
+
+{DATABASE_SCHEMA}
+
+## Instruções:
+1. Sempre use as ferramentas disponíveis para buscar dados atualizados
+2. Responda de forma clara e objetiva em português brasileiro
+3. Formate números, datas e valores de forma legível
+4. Se não encontrar dados, informe claramente
+5. Quando listar muitos itens, organize em formato de lista
+6. Para datas, use formato DD/MM/YYYY
+
+## Contexto temporal:
+{get_current_date_context()}
+
+Seja prestativo, claro e direto nas respostas!
+"""
+
+    return f"""Você é o assistente virtual da EduLingua, uma escola de idiomas. Seu papel é ajudar os administradores a consultar informações sobre turmas, alunos, professores, presenças e finanças.
 
 {DATABASE_SCHEMA}
 
@@ -664,22 +851,26 @@ SYSTEM_PROMPT = f"""Você é o assistente virtual da EduLingua, uma escola de id
 Seja prestativo, claro e direto nas respostas!
 """
 
+
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     """
     Endpoint principal do chat
     """
     try:
+        # Determina escopo do usuário
+        scope = compute_user_scope(request.user)
+
         # Monta histórico de mensagens
-        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-        
+        messages = [{"role": "system", "content": build_system_prompt(scope)}]
+
         # Adiciona histórico
         for msg in request.history[-10:]:  # Últimas 10 mensagens
             messages.append({"role": msg.role, "content": msg.content})
-        
+
         # Adiciona mensagem atual
         messages.append({"role": "user", "content": request.message})
-        
+
         # Primeira chamada - pode solicitar tools
         response = openai_client.chat.completions.create(
             model="gpt-4.1-mini",
@@ -688,25 +879,25 @@ async def chat(request: ChatRequest):
             tool_choice="auto",
             temperature=0.3
         )
-        
+
         assistant_message = response.choices[0].message
-        
+
         # Se precisar executar ferramentas
         if assistant_message.tool_calls:
             # Adiciona resposta do assistente com tool_calls
             messages.append(assistant_message)
-            
+
             # Executa cada ferramenta
             for tool_call in assistant_message.tool_calls:
                 function_name = tool_call.function.name
                 function_args = json.loads(tool_call.function.arguments)
-                
-                print(f"Executando: {function_name}({function_args})")
-                
-                # Executa a função
+
+                print(f"Executando: {function_name}({function_args}) | escopo: {scope.get('perfil')}")
+
+                # Executa a função (com escopo)
                 if function_name in TOOL_FUNCTIONS:
                     try:
-                        result = TOOL_FUNCTIONS[function_name](**function_args)
+                        result = TOOL_FUNCTIONS[function_name](_scope=scope, **function_args)
                     except Exception as e:
                         result = {"erro": str(e)}
                 else:
