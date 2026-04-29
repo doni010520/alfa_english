@@ -165,12 +165,14 @@ const emptyFormAluno = {
   dia_vencimento: '', valor_mensalidade: '', forma_pagamento: 'PIX', desconto: '', status_financeiro: 'em_dia',
 }
 
-function AssistenteIA() {
+function AssistenteIA({ usuario }) {
+  const isSupervisor = usuario?.perfil === 'supervisor'
+  const welcomeMessage = isSupervisor
+    ? 'Olá! 👋 Sou o assistente virtual da EduLingua.\n\nPosso ajudar você a consultar informações sobre as turmas que você supervisiona, alunos dessas turmas, presenças/faltas e conteúdo das aulas.\n\nExemplos de perguntas:\n• Quais turmas eu supervisiono?\n• Quem são os alunos da Categoria 17?\n• Quem faltou na última semana?\n• Quais foram os conteúdos das aulas em abril?\n• Quantos alunos têm cada turma?'
+    : 'Olá! 👋 Sou o assistente virtual da EduLingua. Posso ajudar você a consultar informações sobre turmas, alunos, professores, presenças e finanças.\n\nExemplos de perguntas:\n• Quais turmas existem?\n• Quem são os alunos da turma de Inglês Básico?\n• Quem está inadimplente?\n• Quem faltou essa semana?\n• Quais são as estatísticas da escola?'
+
   const [messages, setMessages] = useState([
-    {
-      role: 'assistant',
-      content: 'Olá! 👋 Sou o assistente virtual da EduLingua. Posso ajudar você a consultar informações sobre turmas, alunos, professores, presenças e finanças.\n\nExemplos de perguntas:\n• Quais turmas existem?\n• Quem são os alunos da turma de Inglês Básico?\n• Quem está inadimplente?\n• Quem faltou essa semana?\n• Quais são as estatísticas da escola?'
-    }
+    { role: 'assistant', content: welcomeMessage }
   ])
   const [inputMsg, setInputMsg] = useState('')
   const [isLoadingChat, setIsLoadingChat] = useState(false)
@@ -197,7 +199,11 @@ function AssistenteIA() {
       const response = await fetch(`${API_URL}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMessage, history: history.slice(-10) })
+        body: JSON.stringify({
+          message: userMessage,
+          history: history.slice(-10),
+          user: usuario ? { id: usuario.id, perfil: usuario.perfil } : null
+        })
       })
 
       if (!response.ok) throw new Error(`Erro ${response.status}`)
@@ -1203,7 +1209,10 @@ function App() {
  const menuItems = usuario?.perfil === 'professor'
     ? [{ id: 'diario', icon: ClipboardList, label: 'Diário de Classe' }]
     : usuario?.perfil === 'supervisor'
-      ? [{ id: 'diario', icon: ClipboardList, label: 'Minhas Turmas' }]
+      ? [
+          { id: 'diario', icon: ClipboardList, label: 'Minhas Turmas' },
+          { id: 'assistente', icon: Bot, label: 'Assistente IA' },
+        ]
       : [
           { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
           { id: 'turmas', icon: BookOpen, label: 'Turmas' },
@@ -1875,9 +1884,9 @@ function App() {
                     <WhatsAppChat />
                   )}
 
-                  {/* Assistente IA - Apenas Admin */}
-                  {activeTab === 'assistente' && usuario?.perfil === 'admin' && (
-                    <AssistenteIA />
+                  {/* Assistente IA - Admin e Supervisor */}
+                  {activeTab === 'assistente' && (usuario?.perfil === 'admin' || usuario?.perfil === 'supervisor') && (
+                    <AssistenteIA usuario={usuario} />
                   )}
 
                 </>
